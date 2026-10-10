@@ -1,0 +1,55 @@
+process.on('uncaughtException',e=>{console.error(String(e.stack||e).replace(/data:text\/javascript;base64,[A-Za-z0-9+/=]+/g,'[module]'));process.exit(1);});
+// Exercises the real route handlers and SQL against an isolated SQLite database.
+// Only the Cloudflare binding boundary is adapted; no production data is touched.
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {DatabaseSync} from 'node:sqlite';
+import ts from 'typescript';
+const source=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
+const moduleURL=code=>'data:text/javascript;base64,'+Buffer.from(ts.transpileModule(code,{compilerOptions:{module:ts.ModuleKind.ESNext,target:ts.ScriptTarget.ES2022}}).outputText).toString('base64');
+const sqlite=new DatabaseSync(':memory:');sqlite.exec(source('drizzle/0000_zippy_monster_badoon.sql'));sqlite.exec(source('drizzle/0001_foamy_freak.sql'));sqlite.exec(source('drizzle/0002_light_deadpool.sql'));
+const binding={async batch(statements){sqlite.exec('BEGIN');try{const results=[];for(const s of statements)results.push(await s.run());sqlite.exec('COMMIT');return results;}catch(e){sqlite.exec('ROLLBACK');throw e;}},prepare(sql){let values=[];return{bind(...args){values=args;return this;},async first(){return sqlite.prepare(sql).get(...values)||null;},async all(){return {results:sqlite.prepare(sql).all(...values)};},async run(){const r=sqlite.prepare(sql).run(...values);return{meta:{changes:Number(r.changes)}};}};}};
+const objects=new Map();const bucket={async put(key,bytes){objects.set(key,bytes);},async get(key){return objects.has(key)?{body:objects.get(key)}:null;},async delete(key){objects.delete(key);}};
+const previousNodeEnv=process.env.NODE_ENV;process.env.NODE_ENV='production';globalThis.__lifeTestDB=binding;globalThis.__lifeTestEnv={BUCKET:bucket};
+const identity=moduleURL(source('lib/identity.ts')),birthday=moduleURL(source('lib/birthday.ts')),game=moduleURL(source('lib/game.ts').replace("from './birthday'",`from '${birthday}'`).replace("from './appearance'",`from '${moduleURL(source('lib/appearance.ts'))}'`));
+function route(code){return moduleURL(code.replace("import { database } from '@/db';","const database=()=>globalThis.__lifeTestDB;").replace("import { authenticatedUser as user } from '@/lib/identity';",`import { authenticatedUser as user } from '${identity}';`).replace("import { authenticatedUser } from '@/lib/identity';",`import { authenticatedUser } from '${identity}';`).replace("import { blank, reduceGame, normalizeGame } from '@/lib/game';",`import { blank, reduceGame, normalizeGame } from '${game}';`).replace("import {normalizeGame,reduceGame} from '@/lib/game';",`import {normalizeGame,reduceGame} from '${game}';`).replace("import { env } from 'cloudflare:workers';","const env=globalThis.__lifeTestEnv;"));}
+const save=await import(route(source('app/api/game/route.ts'))),photos=await import(route(source('app/api/photos/route.ts')));
+const request=(url,uid,body,headers={})=>new Request('https://preview.invalid'+url,{method:body===undefined?'GET':'POST',headers:{...(uid?{'oai-authenticated-user-id':uid}:{}),...(body===undefined?{}:{'Content-Type':'application/json'}),...headers},...(body===undefined?{}:{body:typeof body==='string'||body instanceof Uint8Array?body:JSON.stringify(body)})});
+assert.equal((await save.GET(request('/api/game',null))).status,401);
+assert.equal((await save.POST(request('/api/game','alice','null'))).status,400);
+assert.equal((await save.POST(request('/api/game','alice',{revision:0,action:{type:'onboard',gender:'male',name:'测试',focus:'health',birth:{calendar:'solar',year:1990,month:1,day:1}}},{Origin:'https://other.invalid'}))).status,403);
+let r=await save.POST(request('/api/game','alice',{revision:0,action:{type:'onboard',gender:'male',name:'Alice',focus:'health',birth:{calendar:'solar',year:1990,month:1,day:1}}}));assert.equal(r.status,200);let data=await r.json(),task=data.state.tasks[0];
+const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
+r=await photos.POST(request('/api/photos','alice',new Uint8Array(png),{'Content-Type':'image/png'}));assert.equal(r.status,201);const pic=await r.json();
+r=await photos.GET(request('/api/photos?id='+pic.id,'alice'));assert.equal(r.status,200);assert.equal(r.headers.get('content-type'),'image/png');assert.deepEqual(Buffer.from(await r.arrayBuffer()),png);
+assert.equal((await photos.GET(request('/api/photos?id='+pic.id,'bob'))).status,404);
+assert.equal((await photos.GET(request('/api/photos?id='+pic.id,null))).status,401);
+assert.equal((await photos.POST(request('/api/photos','alice','<svg/>',{'Content-Type':'image/svg+xml'}))).status,415);
+assert.equal((await photos.POST(request('/api/photos','alice','bad',{'Content-Type':'image/jpeg'}))).status,400);
+assert.equal((await photos.POST(request('/api/photos','alice',new Uint8Array(png),{'Content-Type':'image/png','Content-Length':'3000000'}))).status,413);
+r=await save.POST(request('/api/game','alice',{revision:1,action:{type:'log',id:task.id,value:6,photos:[pic.id],note:'真实过程'}}));assert.equal(r.status,200);data=await r.json();assert.equal(data.state.logs[0].xp,0);
+r=await save.POST(request('/api/game','alice',{revision:2,action:{type:'log',id:task.id,value:4}}));assert.equal(r.status,200);data=await r.json();assert.equal(data.state.logs.reduce((n,l)=>n+l.xp,0),30);
+assert.equal((await save.POST(request('/api/game','alice',{revision:2,action:{type:'log',id:task.id,value:4}}))).status,409);
+let loaded=await (await save.GET(request('/api/game','alice'))).json();assert.equal(loaded.revision,3);assert.equal(loaded.state.logs.length,2);assert.equal(loaded.state.logs[0].photos[0],pic.id);
+const bob=await (await save.GET(request('/api/game','bob'))).json();assert.equal(bob.state.profile,null);assert.equal(bob.state.logs.length,0);
+assert.equal((await save.POST(request('/api/game','bob',{revision:0,action:{type:'onboard',gender:'male',name:'Bob',focus:'mind',birth:{calendar:'solar',year:1990,month:1,day:1},photos:[pic.id]}}))).status,400);
+assert.equal((await save.POST(request('/api/game','alice',{revision:3,action:{type:'log',id:task.id,value:1,photos:['photo_'+crypto.randomUUID()]}}))).status,400);
+assert.equal((await save.POST(request('/api/game','alice',{revision:3,action:{type:'log',id:task.id,value:1,note:'x'.repeat(12000)}}))).status,413);
+r=await save.POST(request('/api/game','alice',{revision:3,action:{type:'milestone',kind:'adult',date:'2020-06-01',photos:[pic.id]}}));assert.equal(r.status,200);data=await r.json();assert.deepEqual(data.state.claims,['adult']);
+r=await save.POST(request('/api/game','alice',{revision:4,action:{type:'equip',id:'suit'}}));assert.equal(r.status,200);data=await r.json();assert.equal(data.state.equipped,'suit');
+console.log('PASS 保存→重新读取、6+4分钟奖励、并发冲突与里程碑时装持久化');
+console.log('PASS 照片上传→原图读取、用户隔离、跨用户关联拒绝、登录与来源检查');
+console.log('PASS 无效JSON、错误图片格式、伪图片与体积限制');
+r=await save.POST(request('/api/game','alice',{revision:5,action:{type:'birthday-settings',calendar:'solar',month:1,day:1}}));assert.equal(r.status,200);data=await r.json();
+r=await save.POST(request('/api/game','alice',{revision:6,action:{type:'birthday',year:2026,photos:[pic.id],wish:'继续生长'}}));assert.equal(r.status,200);data=await r.json();assert.equal(data.state.birthdays.length,1);assert.equal(data.state.birthdays[0].photos[0],pic.id);
+r=await photos.GET(request('/api/photos?list=1','alice'));assert.equal(r.status,200);assert.equal((await r.json()).photos.length,1);
+const deleteRequest=(uid,revision,id=pic.id)=>new Request('https://preview.invalid/api/photos',{method:'DELETE',headers:{'oai-authenticated-user-id':uid,'Content-Type':'application/json'},body:JSON.stringify({id,revision})});
+assert.equal((await photos.DELETE(deleteRequest('bob',0))).status,404);assert.equal((await photos.DELETE(deleteRequest('alice',6))).status,409);
+r=await photos.DELETE(deleteRequest('alice',7));assert.equal(r.status,200);data=await r.json();assert.equal(data.state.logs[0].photos.length,0);assert.equal(data.state.milestones[0].photos.length,0);assert.equal(data.state.birthdays[0].photos.length,0);assert(data.state.claims.includes('birthday:2026'));assert.equal(objects.size,0);assert.equal((await photos.GET(request('/api/photos?id='+pic.id,'alice'))).status,404);
+// A failed object cleanup leaves a hidden retryable tombstone, never a public photo.
+r=await photos.POST(request('/api/photos','alice',new Uint8Array(png),{'Content-Type':'image/png'}));const retryPic=await r.json();const deleteObject=bucket.delete;bucket.delete=async()=>{throw Error('simulated outage');};
+r=await photos.DELETE(deleteRequest('alice',8,retryPic.id));assert.equal(r.status,503);assert.equal((await photos.GET(request('/api/photos?id='+retryPic.id,'alice'))).status,404);
+assert.equal((await save.POST(request('/api/game','alice',{revision:9,action:{type:'log',id:task.id,value:1,photos:[retryPic.id]}}))).status,400);
+bucket.delete=deleteObject;r=await photos.DELETE(deleteRequest('alice',9,retryPic.id));assert.equal(r.status,200);assert.equal(objects.size,0);
+console.log('PASS 公历生日设置与持久化、照片全记录移除、并发保护、跨用户删除拒绝与清理失败重试');
+sqlite.close();delete globalThis.__lifeTestDB;delete globalThis.__lifeTestEnv;process.env.NODE_ENV=previousNodeEnv;

@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import ts from 'typescript';
+const code=ts.transpileModule(fs.readFileSync('lib/character-lab-state.ts','utf8'),{compilerOptions:{target:ts.ScriptTarget.ES2020,module:ts.ModuleKind.ESNext}}).outputText;
+const {createLabState,labReducer,labExperience}=await import(`data:text/javascript;base64,${Buffer.from(code).toString('base64')}`);
+const initial=createLabState();
+assert.equal(labExperience(initial),60);
+assert.equal(labReducer(initial,{type:'outfit',outfit:'formal'}),initial,'Unopened gift must not allow formal outfit');
+let state=labReducer(initial,{type:'task'});
+for(let i=0;i<10;i++)state=labReducer(state,{type:'task'});
+assert.equal(labExperience(state),80,'Repeated task actions must not award XP twice');
+state=labReducer(state,{type:'gift',avatar:'male'});
+state=labReducer(state,{type:'outfit',outfit:'formal'});
+assert.equal(state.outfits.male,'formal');
+const repeat=labReducer(state,{type:'gift',avatar:'male'});
+assert.equal(repeat,state,'Repeated opening must be idempotent');
+state=labReducer(state,{type:'avatar',avatar:'female'});
+assert.equal(state.outfits.female,'explorer');
+assert.equal(state.gifts.female,false,'Each avatar must have an independent gift');
+assert.equal(labReducer(state,{type:'outfit',outfit:'formal'}),state);
+state=labReducer(state,{type:'gift',avatar:'female'});
+state=labReducer(state,{type:'outfit',outfit:'formal'});
+state=labReducer(state,{type:'avatar',avatar:'male'});
+assert.equal(state.outfits.male,'formal','Switching back must remember the outfit');
+assert.deepEqual(initial,createLabState(),'Actions must not mutate shared initial state');
+assert.deepEqual(labReducer(state,{type:'reset'}),createLabState(),'Reset must restore gifts, task and wardrobe');
+const manifest=JSON.parse(fs.readFileSync('public/character-lab/asset-manifest.json','utf8'));
+for(const key of ['male-explorer','female-explorer','male-formal','female-formal']){
+ const m=manifest[key];assert.ok(m.hasAlpha);assert.equal(m.width,768);assert.equal(m.height,1152);
+ assert.equal(fs.statSync(`public/character-lab/${m.file}`).size,m.bytes);assert.ok(m.bytes<250000);
+ assert.ok(fs.statSync(`public/character-lab/${key}-portrait.webp`).size>0);
+}
+console.log('Character lab passed: reward idempotency, outfit gating, independent avatars, reset, asset presence and budgets.');

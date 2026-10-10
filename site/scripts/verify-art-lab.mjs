@@ -1,0 +1,28 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+
+const file=await fs.readFile(new URL('../public/art-lab/focus-timer-v1.glb',import.meta.url));
+assert.equal(file.readUInt32LE(0),0x46546c67,'GLB magic');
+assert.equal(file.readUInt32LE(4),2,'GLB version');
+assert.equal(file.readUInt32LE(8),file.length,'GLB length');
+const jsonLength=file.readUInt32LE(12);
+const json=JSON.parse(file.subarray(20,20+jsonLength).toString());
+assert.ok(!json.buffers.some(b=>b.uri),'The model must embed its binary data');
+assert.ok(!json.images?.length,'This prop must not depend on external image textures');
+const model=await new GLTFLoader().parseAsync(file.buffer.slice(file.byteOffset,file.byteOffset+file.byteLength),'');
+model.scene.updateMatrixWorld(true);
+const box=new THREE.Box3().setFromObject(model.scene),size=box.getSize(new THREE.Vector3());
+assert.ok(size.x>2&&size.y>2.8&&size.z>.6,'Expected a full-volume clock and stand');
+let triangles=0,meshes=0;
+model.scene.traverse(o=>{if(!o.isMesh)return;meshes++;const p=o.geometry.attributes.position;assert.ok(Array.from(p.array).every(Number.isFinite),'Finite positions');triangles+=(o.geometry.index?.count??p.count)/3;});
+for(const name of ['ElapsedHand','StartButton','FocusHalo'])assert.ok(model.scene.getObjectByName(name),`Missing interactive node ${name}`);
+const hand=model.scene.getObjectByName('ElapsedHand');const front=model.scene.getObjectByName('Deep_teal_dial');
+const dialBefore=front.matrixWorld.clone();hand.rotation.z=-Math.PI;model.scene.updateMatrixWorld(true);
+assert.ok(front.matrixWorld.equals(dialBefore),'Turning the hand must not rotate the dial');
+assert.ok(meshes<=20&&triangles<25000&&file.length<600000,'Sample resource budget');
+const manifest=JSON.parse(await fs.readFile(new URL('../public/art-lab/focus-timer-manifest.json',import.meta.url),'utf8'));
+assert.equal(manifest.triangles,triangles);assert.equal(manifest.meshes,meshes);assert.equal(manifest.bytes,file.length);
+for(const asset of ['approved-faces.jpg','explorer-modeling-reference.jpg','asset-production-brief.md'])assert.ok((await fs.stat(new URL('../public/art-lab/'+asset,import.meta.url))).size>0);
+console.log(JSON.stringify({status:'passed',triangles,meshes,bytes:file.length,interactiveNodes:3,browserAndDeviceTested:false}));

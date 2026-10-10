@@ -1,0 +1,15 @@
+# Root checkout state and generated artifacts
+.env*
+**/node_modules/
+**/.wrangler/
+**/.sites-runtime/
+**/.next/
+**/.vinext/
+**/dist/
+**/*.tsbuildinfo
+.agents/
+.codex/
+work/
+outputs/
+*.tar
+*.tar.gz

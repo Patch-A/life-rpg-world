@@ -1,0 +1,30 @@
+{
+  "male-explorer": {
+    "file": "male-explorer.webp",
+    "bytes": 144062,
+    "width": 768,
+    "height": 1152,
+    "hasAlpha": true
+  },
+  "female-explorer": {
+    "file": "female-explorer.webp",
+    "bytes": 144790,
+    "width": 768,
+    "height": 1152,
+    "hasAlpha": true
+  },
+  "male-formal": {
+    "file": "male-formal.webp",
+    "bytes": 104640,
+    "width": 768,
+    "height": 1152,
+    "hasAlpha": true
+  },
+  "female-formal": {
+    "file": "female-formal.webp",
+    "bytes": 190434,
+    "width": 768,
+    "height": 1152,
+    "hasAlpha": true
+  }
+}

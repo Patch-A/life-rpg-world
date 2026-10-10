@@ -1,0 +1,12 @@
+/explorer.png
+  Content-Type: image/png
+/world.png
+  Content-Type: image/png
+/outfit-suit.png
+  Content-Type: image/png
+/outfit-dress.png
+  Content-Type: image/png
+
+/world.jpg
+  Content-Type: image/jpeg
+  Cache-Control: public, max-age=86400

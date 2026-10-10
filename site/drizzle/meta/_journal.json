@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1791446479344,
+      "tag": "0000_zippy_monster_badoon",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1791468827823,
+      "tag": "0001_foamy_freak",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791549862023,
+      "tag": "0002_light_deadpool",
+      "breakpoints": true
+    }
+  ]
+}
