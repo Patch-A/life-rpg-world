@@ -1,6 +1,12 @@
 # 人生 RPG · Codex 交接
 
-## 已确认基线（2026-10-11）
+## 当前首版（2026-10-12）
+
+Sites第12版已发布，来源提交 `3bf9860102504ebbeed564f385de40d9f00bbfaf`，208个应用文件在 `site/`，来源清单为 `RELEASE_MANIFEST.json`。新增AI拆解、确认、复盘、反馈和可选生日建档，运行配置及本轮验证见 `RELEASE_STATUS.md`。`SUBMISSION_READY.md`为实际功能投稿说明；未完成正式投稿、第二真实账号及真机验收。下面第11版为历史基线，不代表当前尚无AI功能。
+
+生产新增迁移0003，维护旧迁移不可改写。模型密钥为Sites secret，不在源码内。Windows本地迁移子进程崩溃时可使用 `site/scripts/init-local-db.mjs`，其只接受本checkout空数据库或自身初始化的数据库；停止预览后执行。Sites打包在Windows需要Git Bash置于PATH前，GNU Tar使用 `TAR_OPTIONS=--force-local`。
+
+## 历史基线（2026-10-11）
 
 - 仓库：`Patch-A/life-rpg-world`，私有，默认分支 `main`。
 - 网站：https://life-rpg-world.docileape4.chatgpt.site/

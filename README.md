@@ -1,5 +1,7 @@
 # 人生 RPG · 成长星球
 
+2026-10-12：首版AI行动流程已发布为Sites第12版。当前源码在 `site/`，发布状态与验收边界见 `docs/RELEASE_STATUS.md`，投稿填写材料见 `docs/SUBMISSION_READY.md`。较早第11版来源清单为历史快照；当前208个应用文件对应 `docs/RELEASE_MANIFEST.json`。
+
 个人成长网站：记录目标、日常行动、储蓄进度、人生纪念和生日，以经验、徽章和角色反馈展示成长。
 
 ## 当前同步版本

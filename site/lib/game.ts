@@ -8,15 +8,16 @@ export const domains = [
  {id:'social', name:'关系', region:'共鸣群岛', color:'#f69cc8', description:'与重要的人，建立真实的连接。', skill:'关系经营'},
 ] as const;
 export type Domain = typeof domains[number]['id'];
-export type Goal = {id:string; title:string; domain:Domain; target:number; unit:string; deadline:string; paused:boolean; createdAt:string; completionChoice?:'habit'|'archived'; recordMode?:'entries'|'monthly'; initial?:number};
-export type Task = {id:string; title:string; domain:Domain; target:number; unit:string; repeat:boolean; goalId:string; archived:boolean; evidence?:'optional'|'photo'};
+export type Goal = {id:string; title:string; domain:Domain; target:number; unit:string; deadline:string; paused:boolean; createdAt:string; completionChoice?:'habit'|'archived'; recordMode?:'entries'|'monthly'; initial?:number;successCriteria?:string;confirmedAt?:string};
+export type Task = {id:string; title:string; domain:Domain; target:number; unit:string; repeat:boolean; goalId:string; archived:boolean; evidence?:'optional'|'photo';completionCriteria?:string;steps?:string[];originRunId?:string};
+export type ActionReview={id:string;goalId:string;summary:string;adjustment:string;sourceLogIds:string[];at:string;taskId?:string};
 export type Log = {id:string; taskId:string; title:string; domain:Domain; value:number; unit:string; goalId:string; xp:number; date:string; at:string; undone:boolean; note?:string; photos?:string[]; source?:'manual'|'timer'; direction?:'deposit'|'withdraw'; updatedAt?:string; history?:{value:number;date:string;note:string;at:string}[]};
-export type Game = {profile:null|{name:string; focus:Domain; createdAt:string;gender?:Gender;avatarId?:AvatarId;birth?:BirthInfo}; goals:Goal[]; tasks:Task[]; logs:Log[]; events:{id:string;choice:string;at:string}[]; milestones:LifeMilestone[]; claims:string[]; equipped:string; birthday:BirthdaySettings|null;birthdays:BirthdayRecord[];birthdayQueue:BirthdayOccurrence[];settings:{celebrations:boolean;memoryPromptSeen:boolean}};
+export type Game = {profile:null|{name:string; focus:Domain; createdAt:string;gender?:Gender;avatarId?:AvatarId;birth?:BirthInfo}; goals:Goal[]; tasks:Task[]; logs:Log[]; events:{id:string;choice:string;at:string}[]; milestones:LifeMilestone[]; claims:string[]; equipped:string; birthday:BirthdaySettings|null;birthdays:BirthdayRecord[];birthdayQueue:BirthdayOccurrence[];reviews:ActionReview[];agentAccepts:string[];settings:{celebrations:boolean;memoryPromptSeen:boolean}};
 export type LifeMilestone={id:string;kind:string;title:string;date:string;note:string;photos:string[];at:string;updatedAt:string;archived:boolean;datePrecision?:'day'|'year'|'unknown';history?:{date:string;datePrecision?:'day'|'year'|'unknown';note:string;at:string;title?:string}[]};
 export const milestoneKinds=[{id:'adult',title:'18 岁成人礼',category:'人生转折',reward:'成年礼装',description:'把属于你的成人礼，珍藏在这里。'},{id:'first-job',title:'第一份工作',category:'人生转折',reward:'初入职场徽章',description:'记录第一次走进职场的日子。'},{id:'first-salary',title:'第一次领工资',category:'值得纪念',reward:'第一份收获徽章',description:'这一份回报，属于认真迈步的你。'},{id:'graduation',title:'毕业',category:'人生转折',reward:'新的起点徽章',description:'告别一个阶段，也开启一段新旅程。'},{id:'custom',title:'我的重要时刻',category:'自定义纪念',reward:'人生纪念',description:'重要与否，由你自己定义。'}] as const;
 export const outfits=[{id:'explorer',name:'启程探索装',image:'/explorer.png',requirement:''},{id:'suit',name:'星光西装',image:'/outfit-suit.png',requirement:'adult'},{id:'dress',name:'月光礼裙',image:'/outfit-dress.png',requirement:'adult'}];
 export function normalizeGame(value:Game,today=day()):Game {
- const s={...blank(),...value,milestones:value.milestones||[],claims:value.claims||[],equipped:value.equipped||'explorer',birthday:value.birthday||null,birthdays:value.birthdays||[],birthdayQueue:value.birthdayQueue||[],settings:{celebrations:value.settings?.celebrations??true,memoryPromptSeen:value.settings?.memoryPromptSeen??false}};
+ const s={...blank(),...value,reviews:value.reviews||[],agentAccepts:value.agentAccepts||[],milestones:value.milestones||[],claims:value.claims||[],equipped:value.equipped||'explorer',birthday:value.birthday||null,birthdays:value.birthdays||[],birthdayQueue:value.birthdayQueue||[],settings:{celebrations:value.settings?.celebrations??true,memoryPromptSeen:value.settings?.memoryPromptSeen??false}};
  if(s.profile?.gender)s.profile={...s.profile,avatarId:s.profile.gender};
  s.equipped=resolveEquipped(characterGender(s.profile),s.equipped,s.claims);
  return syncBirthdayQueue(s,today);
@@ -46,12 +47,13 @@ export function completedActions(s:Game,filter:{date?:string;domain?:Domain}={})
 export function availableXP(s:Game,domain:Domain,today=day()){return Math.max(0,30-s.logs.filter(l=>!l.undone&&l.domain===domain&&l.date===today).reduce((n,l)=>n+l.xp,0));}
 export function adultEligible(s:Game,today=day()){return !!s.profile?.birth&&adultDate(s.profile.birth)<=today;}
 export type Action = {type:string; [key:string]:unknown};
-export const blank = ():Game=>({profile:null,goals:[],tasks:[],logs:[],events:[],milestones:[],claims:[],equipped:'explorer',birthday:null,birthdays:[],birthdayQueue:[],settings:{celebrations:true,memoryPromptSeen:false}});
+export const blank = ():Game=>({profile:null,goals:[],tasks:[],logs:[],events:[],milestones:[],claims:[],equipped:'explorer',birthday:null,birthdays:[],birthdayQueue:[],reviews:[],agentAccepts:[],settings:{celebrations:true,memoryPromptSeen:false}});
 const dayFormatter=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'});
 export function day(date=new Date()){return dayFormatter.format(date);}
 export function xp(s:Game){return s.logs.filter(x=>!x.undone).reduce((v,x)=>v+x.xp,0);}
 export function level(s:Game){return Math.floor(xp(s)/200)+1;}
 export function progress(s:Game,g:Goal){return s.logs.filter(l=>!l.undone&&l.goalId===g.id&&l.unit===g.unit).reduce((v,l)=>Math.round((v+(l.direction==='withdraw'?-l.value:l.value))*100)/100,g.initial||0);}
+export function goalReached(s:Game,g:Goal){return g.successCriteria?!!g.confirmedAt:progress(s,g)>=g.target;}
 export function done(s:Game,t:Task,today=day()){return s.logs.filter(l=>!l.undone&&l.taskId===t.id&&(!t.repeat||l.date===today)).reduce((v,l)=>v+l.value,0);}
 export const events = [
  {id:'arrival',level:1,title:'一封来自未来的信',tag:'序章 · 星球初见',body:'你在营地发现了一封信。信里只有一句话：“未来的你，正在感谢今天迈出的第一步。”你想带上什么出发？',choices:['一份好奇心','一点勇气'],reward:'启程纪念'},
@@ -79,7 +81,7 @@ function financialCheck(s:Game,g:Goal){if(progress(s,g)<0)throw new Error('取�
 export function reduceGame(current:Game,a:Action,now=new Date()):Game {
  const s=structuredClone(normalizeGame(current,day(now))),at=now.toISOString(),today=day(now),id=()=>crypto.randomUUID();
  if(a.type==='onboard'){
-  if(s.profile)throw new Error('角色已创建');const focus=domain(a.focus);const birth=validateBirth(a.birth as Record<string,unknown>||{},today);const gender=validGender(a.gender),avatarId=validAvatar(a.avatarId,gender);s.profile={name:str(a.name,20),focus,createdAt:at,birth,gender,avatarId};s.settings.memoryPromptSeen=true;s.birthday=celebrationSettings(birth,a.celebrationCalendar==='lunar'?'lunar':'solar');
+  if(s.profile)throw new Error('角色已创建');const focus=domain(a.focus);const birth=a.birth?validateBirth(a.birth as Record<string,unknown>,today):undefined;const gender=validGender(a.gender),avatarId=validAvatar(a.avatarId,gender);s.profile={name:str(a.name,20),focus,createdAt:at,...(birth?{birth}:{}),gender,avatarId};s.settings.memoryPromptSeen=true;s.birthday=birth?celebrationSettings(birth,a.celebrationCalendar==='lunar'?'lunar':'solar'):null;
   const plans:Record<Domain,[string,string,string,number,number]>={mind:['建立阅读习惯','阅读并记录一个收获','分钟',300,20],health:['开启规律运动','完成一次运动','分钟',300,10],career:['推进一个个人项目','专注推进项目','分钟',600,30],wealth:['建立第一笔储蓄','记录实际存入金额','元',1000,100],social:['与重要的人保持联系','一次认真交流','次',10,1]};
   const p=plans[focus],gid=id();s.goals.push({id:gid,title:typeof a.goalTitle==='string'&&a.goalTitle.trim()?str(a.goalTitle):p[0],domain:focus,target:a.goalTarget===undefined?p[3]:num(a.goalTarget),unit:a.goalUnit===undefined?p[2]:unit(a.goalUnit),deadline:'',paused:false,createdAt:at,initial:0,recordMode:'entries'});
   const goal=s.goals.at(-1)!;if(goal.unit!=='元')s.tasks.push({id:id(),title:typeof a.taskTitle==='string'?str(a.taskTitle):p[1],domain:focus,target:a.taskTarget===undefined?p[4]:num(a.taskTarget),unit:goal.unit,repeat:true,goalId:gid,archived:false,evidence:'optional'});return syncBirthdayQueue(s,today);
@@ -95,15 +97,28 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
   const initial=u==='元'?Number(a.initial||0):0;if(!Number.isFinite(initial)||initial<0||initial>100000000)throw new Error('已有存款金额无效');
   const mode=a.recordMode==='monthly'?'monthly':'entries';
   if(existing&&s.logs.some(l=>l.goalId===existing.id)&&(mode!==(existing.recordMode||'entries')||initial!==(existing.initial||0)))throw new Error('已有记录后，记账方式和起始存款不能变更，请新建目标');
-  const g:Goal={id:existing?.id||id(),title:str(a.title),domain:existing?.domain||domain(a.domain),target:num(a.target),unit:u,deadline,paused:existing?.paused||false,createdAt:existing?.createdAt||at,recordMode:mode,initial:Math.round(initial*100)/100,completionChoice:existing?.completionChoice};
+  const g:Goal={id:existing?.id||id(),title:str(a.title),domain:existing?.domain||domain(a.domain),target:num(a.target),unit:u,deadline,paused:existing?.paused||false,createdAt:existing?.createdAt||at,recordMode:mode,initial:Math.round(initial*100)/100,completionChoice:existing?.completionChoice,successCriteria:existing?.successCriteria,confirmedAt:existing?.confirmedAt};
   if(existing)s.goals=s.goals.map(x=>x.id===g.id?g:x);else s.goals.push(g);return s;
  }
  if(a.type==='finish-goal'){
-  const g=s.goals.find(g=>g.id===a.id);if(!g)throw Error('目标不存在');if(progress(s,g)<g.target)throw Error('目标还未达成');if(g.completionChoice)throw Error('这个目标已整理完成');
+  const g=s.goals.find(g=>g.id===a.id);if(!g)throw Error('目标不存在');if(!goalReached(s,g))throw Error('目标还未达成');if(g.completionChoice)throw Error('这个目标已整理完成');
   if(a.choice!=='habit'&&a.choice!=='archived')throw Error('请选择目标完成后的安排');
   g.completionChoice=a.choice;g.paused=true;for(const t of s.tasks.filter(t=>t.goalId===g.id)){if(a.choice==='habit'&&!t.archived)t.goalId='';else t.archived=true;}return s;
  }
  if(a.type==='pause'){const g=s.goals.find(g=>g.id===a.id);if(!g)throw new Error('目标不存在');g.paused=!g.paused;return s;}
+ if(a.type==='confirm-goal'){const g=s.goals.find(g=>g.id===a.id);if(!g||!g.successCriteria)throw Error('这个目标没有独立成功标准');if(g.paused||g.completionChoice)throw Error('请先恢复目标');g.confirmedAt=g.confirmedAt||at;return s;}
+ if(a.type==='delete-review'){if(!s.reviews.some(r=>r.id===a.id))throw Error('复盘不存在');s.reviews=s.reviews.filter(r=>r.id!==a.id);return s;}
+ // Internal action assembled from the current user's server-side AI proposal.
+ if(a.type==='agent-confirm'){
+  const rid=str(a.clientId,80);if(s.agentAccepts.includes(rid))return s;if(s.agentAccepts.length>=1000)throw Error('AI确认记录已达容量上限，请反馈给维护者');
+  let g=s.goals.find(g=>g.id===a.goalId);if(a.goalId&&!g)throw Error('主线目标不存在');
+  if(!g){if(s.goals.length>=100)throw Error('最多创建100个目标');const ng=a.newGoal as Record<string,unknown>;if(!ng)throw Error('目标信息缺失');g={id:id(),title:str(ng.title),domain:domain(ng.domain),target:num(ng.target),unit:'分钟',successCriteria:str(ng.successCriteria,300),deadline:'',paused:false,createdAt:at};s.goals.push(g);}
+  if(g.paused||g.completionChoice||g.confirmedAt)throw Error('目标已暂停或达成，请重新选择');
+  let taskId:string|undefined;
+  if(a.candidate){if(s.tasks.filter(t=>!t.archived).length>=100)throw Error('请先归档不再需要的行动');const c=a.candidate as Record<string,unknown>;const minutes=num(c.minutes);if(minutes>120||!Number.isInteger(minutes))throw Error('行动时间无效');if(!Array.isArray(c.steps)||c.steps.length<1||c.steps.length>4)throw Error('行动步骤无效');taskId=id();s.tasks.push({id:taskId,title:str(c.title),completionCriteria:str(c.completionCriteria,300),steps:c.steps.map(v=>str(v,200)),domain:g.domain,target:g.unit==='分钟'?minutes:1,unit:g.unit,repeat:false,goalId:g.id,archived:false,evidence:'optional',originRunId:rid});}
+  if(a.review){if(s.reviews.length>=200)throw Error('复盘记录已达容量上限，请导出并整理');const r=a.review as Record<string,unknown>;if(!Array.isArray(r.sourceLogIds)||!r.sourceLogIds.length||r.sourceLogIds.length>12||r.sourceLogIds.some(v=>!s.logs.some(l=>l.id===v&&l.goalId===g!.id&&!l.undone)))throw Error('复盘引用已改变，请重新生成');s.reviews.push({id:rid,goalId:g.id,summary:str(r.summary,600),adjustment:str(r.adjustment,300),sourceLogIds:r.sourceLogIds as string[],at,taskId});}
+  if(!a.candidate&&!a.review)throw Error('没有可确认的内容');s.agentAccepts.push(rid);return s;
+ }
  if(a.type==='task'){
   const existing=s.tasks.find(t=>t.id===a.id);if(a.id&&!existing)throw new Error('行动不存在');
   if(!a.id&&s.tasks.filter(t=>!t.archived).length>=100)throw new Error('请先归档不再需要的行动');

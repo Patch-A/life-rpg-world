@@ -30,6 +30,8 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.dev.vars*
+!.env.example
 
 # vercel
 .vercel
@@ -45,3 +47,5 @@ next-env.d.ts
 /outputs/
 /work/
 *.tar.gz
+
+*.tsbuildinfo
