@@ -1,36 +1,84 @@
 # 人生 RPG · 成长星球
 
-2026-10-13：首版AI行动流程已发布为Sites第12版并公开入口；演示无需登录，个人记录和AI仍需登录。当前源码在 `site/`，发布状态与验收边界见 `docs/RELEASE_STATUS.md`，投稿填写材料见 `docs/SUBMISSION_READY.md`。较早第11版来源清单为历史快照；当前208个应用文件对应 `docs/RELEASE_MANIFEST.json`。
+把想做的事变成今天的一小步，用行动记录决定下一步。
 
-个人成长网站：记录目标、日常行动、储蓄进度、人生纪念和生日，以经验、徽章和角色反馈展示成长。
+![人生RPG · 成长星球封面](docs/submission-cover.png)
 
-## 当前同步版本
+**H5 v0.2开源源码版：本地登录、双账号隔离和真实AI流程已验证；尚未独立公网部署、尚未正式投稿。**
 
-- 来源：Sites 第 **11** 版，发布状态已核对为 succeeded。
-- 原始源码提交：`1c66c3c3f82e67819bb42f5eb1ae7c0803397ce3`。
-- 站点：[人生 RPG](https://life-rpg-world.docileape4.chatgpt.site/)，沿用现有访问权限。
-- GitHub 仓库为私有，应用源码和素材在 [`site/`](site/)。
-- 本次同步日期：2026-10-11（北京时间）。
+[下载H5源码与投稿附件](https://github.com/Patch-A/life-rpg-world/releases/tag/h5-submission-v0.2) · [投稿材料入口](submission/README.md) · [本地运行说明](h5/README.md) · [版本状态](docs/H5_SUBMISSION_STATUS.md)
 
-最新角色规则：男角色使用探索装或西装；女角色使用探索装或礼裙。成人礼按角色解锁对应服装，旧存档中的不兼容穿搭由规则层修正。正式角色使用 2D 立绘，支持全身／近景、点击回应和庆祝；3D 相关代码及美术实验保留在原始源码中。
+## 产品做什么
 
-## 接手开发
+面向有学习、创作或个人项目目标的成年人。输入目标、成功标准、可用时间和障碍，AI给出包含步骤、耗时和完成标准的候选行动。你可以修改、拒绝或确认，确认后才保存。留下行动记录，再根据所选目标最近的有效文字记录生成带引用的短复盘与下一步。
 
-先读 [`AGENTS.md`](AGENTS.md) 和 [`docs/CODEX_HANDOFF.md`](docs/CODEX_HANDOFF.md)。项目使用 Node.js >=22.13.0、pnpm 11.25.0、React、vinext/Vite，以及 Cloudflare D1/R2。
+成长经验、升级和奖励由确定性规则处理，AI不会替你认定现实完成。照片、生日和纪念为可选补充。反馈会给出回执，可查看、删除本人反馈并导出存档。
+
+## 体验与交付状态
+
+| 项目 | 当前情况 |
+| --- | --- |
+| 独立H5 | Node.js24 / Next.js / SQLite / 私有照片目录，独立试用账号，无需ChatGPT |
+| 本地入口 | 运行后打开 `http://127.0.0.1:3187`，仅当前电脑可访问 |
+| 固定演示 | `/demo`，明确标注虚构样例，不调用模型、不建立私人存档 |
+| 真实AI | 服务端DeepSeek已实现并本地验证，下载包默认关闭，不含Key |
+| 私人账号 | 本应用生成的专属邀请码，首次本地启动生成，不由外部平台提供 |
+| 独立在线服务 | 尚未部署，仓库链接不等于在线AI体验网址 |
+| 支付宝接入 | 尚无小程序上架、身份授权、账单、步数、支付或阿宝分发 |
+| 投稿 | 已准备源码、封面、文案和运行材料，尚无正式提交回执 |
+
+旧Sites保留为历史展示，ChatGPT登录已出现地区限制，公开AI已关闭。旧URL不替代当前H5的可用性证明。旧存档未清空，新旧账号尚未自动合并。
+
+## 在本机运行
+
+建议下载Release中的 `life-rpg-h5-submission-v0.2.zip`，解压进入 `life-rpg-h5/`。需要Node.js24及锁定的pnpm11.25.0：
+
+```sh
+corepack pnpm install --frozen-lockfile
+corepack pnpm build
+node start-local.mjs
+```
+
+启动器仅监听本机，首次初始化SQLite并生成 `data/local-preview-invitation.json`。复制其中的 `invitationCode` 到 `/access` 登录；`accountId` 只是管理标识。邀请码等同私人账号凭据，不要公开或共用。存档和照片在 `data/`，关闭进程不会删除，删除该目录会丢失数据。
+
+默认强制关闭AI且不读取密钥。若要本人进行真实模型测试，可显式指定已有、被Git忽略的测试配置文件：
+
+```sh
+node start-local.mjs --test-key-file ABSOLUTE_IGNORED_TEST_FILE
+```
+
+真实AI需联网并产生API用量。不要将Key放在命令行、Git或公开材料中；公开服务须使用另行授权正式用途的配置。
+
+若从完整Git仓库开发，先生成独立源码，再按上述步骤运行：
 
 ```sh
 git clone https://github.com/Patch-A/life-rpg-world.git
-cd life-rpg-world/site
-corepack pnpm install --frozen-lockfile
-corepack pnpm run dev
+cd life-rpg-world
+node scripts/prepare-h5.mjs
+cd outputs/h5-submission
 ```
 
-上述是后续本地启动步骤，本次同步没有安装依赖或运行构建。数据库迁移、运行环境与 Windows 兼容性见交接说明。
+GitHub自动生成的仓库Source code ZIP没有Git元数据，上述导出步骤针对Git克隆。Release中的独立H5包已导出，可直接安装/构建。
 
-## 文档与数据边界
+## 代码与部署
 
-`site/README.md` 保留原版本原文，其中“服装不按性别限制”“GitHub 上传暂缓”等历史段落已过期；当前规则以本 README、交接说明和 `lib/appearance.ts` 为准。
+- [`site/`](site/)：原Sites源码、素材与历史规则。
+- [`h5/overlay/`](h5/overlay/)：独立运行、身份、存储、首页和部署适配。
+- [`scripts/prepare-h5.mjs`](scripts/prepare-h5.mjs)：白名单导出，不复制运行环境或私人数据。
+- [`scripts/verify-h5.mjs`](scripts/verify-h5.mjs)：实际本机HTTP验收，默认无模型调用。
+- [`h5/overlay/deploy/`](h5/overlay/deploy/)：单机HTTPS模板，尚未在云主机验收。
+- [`docs/LOW_COST_HOSTING_REVIEW.md`](docs/LOW_COST_HOSTING_REVIEW.md)：低成本候选及未验证条件。
 
-192 个原始站点文件按 Git blob 哈希和模式同步；唯一排除的已跟踪文件是编译缓存 `tsconfig.tsbuildinfo`。详情见 [`docs/SOURCE_MANIFEST.json`](docs/SOURCE_MANIFEST.json)。未上传生产 D1/R2 数据、个人照片、存档导出、环境变量、依赖目录或访问凭据。
+单实例访问SQLite，数据目录须持久化且不能暴露为静态文件。正式上线还需托管、HTTPS、可信公开Origin、备份恢复、正式模型预算及目标网络验收。低成本候选尚未选定，不承诺免费资格或国内访问质量。
 
-此仓库没有新增开源许可证。素材来源与已有第三方许可证保留；公开分发前仍需核对其使用范围。
+## 已完成的验证
+
+2026-10-20生产编译和TypeScript通过。实际HTTP覆盖双虚构账号登录、匿名/伪造身份拒绝、存档和照片隔离、并发冲突、反馈幂等、退出与停用、关闭AI无模型调用。另以两次真实DeepSeek请求验证虚构目标生成、编辑确认、防重复确认、虚构记录及带有效引用的复盘保存。
+
+这是本机工程验证，不是公网、浏览器视觉、真机、支付宝内浏览器或真实用户效果验证。见[状态记录](docs/H5_SUBMISSION_STATUS.md)。
+
+## 数据与许可
+
+GitHub只存源码和投稿材料，不存模型Key、邀请码、会话、生产数据库、私人照片或用户存档。不要通过公开Issue提交这些信息。下载者在自己环境生成自己的账号。
+
+原创软件代码和文档采用[MIT许可证](LICENSE)。第三方代码保留各自许可，见[第三方声明](THIRD_PARTY_NOTICES.md)。**视觉素材不包含在该MIT授权范围内**，见[素材说明](ASSETS.md)。源码公开不代表已完成素材的赛事权利声明，参赛人仍需按实际情况核对。

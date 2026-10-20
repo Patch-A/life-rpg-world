@@ -42,6 +42,7 @@ await writeFile(path.join(destination,'package.json'),JSON.stringify(pkg,null,2)
 exported.add('package.json');
 for(const name of ['pnpm-lock.yaml','pnpm-workspace.yaml','postcss.config.mjs']){await copyFile(path.join(root,'site',name),path.join(destination,name));exported.add(name);}
 await copyFile(path.join(root,'h5/README.md'),path.join(destination,'README.md'));exported.add('README.md');
+for(const name of ['LICENSE','THIRD_PARTY_NOTICES.md','ASSETS.md']){await copyFile(path.join(root,name),path.join(destination,name));exported.add(name);}
 const files=[];for(const relative of [...exported].sort()){files.push({path:relative,sha256:createHash('sha256').update(await readFile(path.join(destination,relative))).digest('hex')});}
 const manifest={createdAt:new Date().toISOString(),sourceCommit:execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),sourceHasUncommittedChanges:!!execFileSync('git',['status','--porcelain','--','site','h5','scripts/prepare-h5.mjs'],{cwd:root,encoding:'utf8'}).trim(),files,entry:'/',application:'/play',data:'excluded',secrets:'excluded',deployment:'not deployed'};
 await writeFile(path.join(destination,'H5_SOURCE.json'),JSON.stringify(manifest,null,2)+'\n');
