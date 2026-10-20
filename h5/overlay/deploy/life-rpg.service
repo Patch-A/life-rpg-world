@@ -1,0 +1,22 @@
+[Unit]
+Description=Life RPG H5 beta
+After=network.target
+
+[Service]
+Type=simple
+User=life-rpg
+Group=life-rpg
+WorkingDirectory=/opt/life-rpg
+Environment=NODE_ENV=production
+EnvironmentFile=/etc/life-rpg/runtime.env
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3000
+Restart=on-failure
+RestartSec=5
+UMask=0077
+StateDirectory=life-rpg
+StateDirectoryMode=0700
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

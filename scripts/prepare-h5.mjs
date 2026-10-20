@@ -22,7 +22,12 @@ for(const name of tracked){
   let content=await readFile(path.join(root,name),'utf8');
   content=content.replaceAll("from 'cloudflare:workers'","from '@/server/runtime'")
    .replaceAll('/signin-with-chatgpt?return_to=%2F','/access');
-  if(name==='site/lib/agent-contract.ts')content=content.replace("RELEASE='submission-v0.1'","RELEASE='h5-submission-v0.1'");
+  if(name==='site/lib/agent-contract.ts')content=content.replace("RELEASE='submission-v0.1'","RELEASE='h5-submission-v0.2'");
+  if(['site/app/api/game/route.ts','site/app/api/photos/route.ts'].includes(name)){
+   const old="const origin=req.headers.get('origin');if(origin&&origin!==new URL(req.url).origin)";
+   if(!content.includes(old))throw Error('Origin guard source changed; review the H5 adapter: '+name);
+   content="import {requestOriginAllowed} from '@/server/origin';\n"+content.replaceAll(old,'if(!requestOriginAllowed(req))');
+  }
   if(name==='site/app/page.tsx')content=content.replace('<span className="private-label">私人星球</span>','<a className="private-label" href="/access">试用账号</a>');
   if(name==='site/app/demo/page.tsx')content=content.replaceAll('href="/"','href="/play"');
   await writeFile(target,content);
@@ -32,7 +37,7 @@ const overlays=execFileSync('git',['ls-files','--cached','--others','--exclude-s
 for(const name of overlays){const relative=name.slice('h5/overlay/'.length),target=path.join(destination,relative);await mkdir(path.dirname(target),{recursive:true});await copyFile(path.join(root,name),target);exported.add(relative);}
 const pkg=JSON.parse(await readFile(path.join(root,'site/package.json'),'utf8'));
 pkg.name='life-rpg-h5-submission';pkg.engines={node:'>=24.0.0'};
-pkg.scripts={dev:'next dev --webpack --hostname 127.0.0.1',build:'next build --webpack',start:'next start --hostname 127.0.0.1', 'h5:init':'node --env-file-if-exists=.env.local scripts/manage.mjs init','h5:invite':'node --env-file-if-exists=.env.local scripts/manage.mjs invite','h5:revoke':'node --env-file-if-exists=.env.local scripts/manage.mjs revoke','h5:feedback':'node --env-file-if-exists=.env.local scripts/manage.mjs feedback'};
+pkg.scripts={dev:'next dev --webpack --hostname 127.0.0.1',build:'next build --webpack',start:'next start --hostname 127.0.0.1', 'h5:init':'node --env-file-if-exists=.env.local scripts/manage.mjs init','h5:doctor':'node --env-file-if-exists=.env.local scripts/manage.mjs doctor','h5:invite':'node --env-file-if-exists=.env.local scripts/manage.mjs invite','h5:revoke':'node --env-file-if-exists=.env.local scripts/manage.mjs revoke','h5:feedback':'node --env-file-if-exists=.env.local scripts/manage.mjs feedback'};
 await writeFile(path.join(destination,'package.json'),JSON.stringify(pkg,null,2)+'\n');
 exported.add('package.json');
 for(const name of ['pnpm-lock.yaml','pnpm-workspace.yaml','postcss.config.mjs']){await copyFile(path.join(root,'site',name),path.join(destination,name));exported.add(name);}

@@ -14,7 +14,7 @@
 
 ## 导出与运行
 
-如果收到的是 `life-rpg-h5-submission-v0.1.zip`，解压后进入 `life-rpg-h5/`，直接从安装依赖开始；下面的导出步骤仅用于完整GitHub仓库。
+如果收到的是 `life-rpg-h5-submission-v0.2.zip`，解压后进入 `life-rpg-h5/`，直接从安装依赖开始；下面的导出步骤仅用于完整GitHub仓库。
 
 在仓库根目录运行：
 
@@ -67,6 +67,10 @@ corepack pnpm start
 
 ## 检查边界
 
-本次不新增或运行自动测试套件（遵循仓库约定）。编译与人工本地预览结果另记 `docs/H5_SUBMISSION_STATUS.md`；不借用旧Sites验收代表H5已验证。公网前仍需检查独立登录与用户隔离、伪造身份头、撤销、并发存档/确认、照片权限、真实AI与费用开关、两位实际用户、真实手机及支付宝内浏览器。
+2026-10-20在用户继续推进并验证的授权范围内新增 `scripts/verify-h5.mjs`，实际启动隔离的本机HTTP服务，验证两账号登录、存档/照片/反馈隔离、并发保存、退出和停用。默认强制关闭AI，不读取密钥；显式 `--real-ai --key-file ABSOLUTE_IGNORED_TEST_FILE` 才使用既有测试凭据发出两次真实模型请求，所有输入为虚构验收数据。不能将测试凭据用于公开生产。最新编译、HTTP及真实模型结果见 `docs/H5_SUBMISSION_STATUS.md`。
+
+`deploy/` 包含Linux单机、systemd、Caddy HTTPS与受保护环境配置模板，尚未在真实服务器执行。新增 `corepack pnpm h5:doctor`，生产配置检查追加 `--production`，提交前检查追加 `--submission`（后者要求启用真实AI及服务端Key）。只返回配置布尔项，不打印凭据；配置通过不等于公网或真实模型可达。
+
+公网前仍需复验部署环境登录和权限、HTTPS与实际AI。真实手机及支付宝内浏览器、第二位真实试用者应在受控发布后尽快验收；这是产品质量建议，不能冒充已核实的赛事硬性前置条件。两位虚构测试账号不等于两名真实用户。浏览器控制连接在本轮超时，未完成手机视口或真机检查。
 
 技术来源：[Next.js配置](https://nextjs.org/docs/app/api-reference/config/next-config-js)、[Node.js SQLite](https://nodejs.org/download/release/latest-jod/docs/api/sqlite.html)。这些支持运行方案选择，不证明本产品已上线。

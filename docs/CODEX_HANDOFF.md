@@ -1,5 +1,7 @@
 # 人生 RPG · Codex 交接
 
+2026-10-20：独立H5升级候选v0.2，已解决10月14日预览启动问题，并在真实HTTP中修复Next内部URL导致同源登录误拒的问题。写接口统一使用明确APP_ORIGIN＋Host校验；不要恢复基于内部Request.url的比较，也不要信任公网Forwarded头。最终编译、七组独立HTTP检查和两次虚构数据真实DeepSeek生成/确认/记录/引用复盘通过；测试Key仅本地使用，公开仍关闭。新增 `scripts/verify-h5.mjs`、`deploy/`、CLI doctor和 `H5_SUBMISSION_FORM.md`。用户仍无独立资源/域名；未公网部署或投稿。浏览器控制连接超时，视觉/真机/真实用户未验收。具体证据见 `H5_SUBMISSION_STATUS.md`；下文10月14日为历史。
+
 2026-10-14：新增独立H5参赛适配，入口 `h5/README.md`，状态 `H5_SUBMISSION_STATUS.md`。运行 `node scripts/prepare-h5.mjs` 从现有 `site/` 加 `h5/overlay/` 生成 `outputs/h5-submission/`，不要手改生成目录当长期源码。独立版采用Node24/Next/SQLite/私人照片目录与单人专属邀请码，不依赖ChatGPT登录；现有Sites及其存档保留。生产编译与本地初始化通过；启动本地预览被自动审批拦截，浏览器与实际登录未验收，无公网部署、正式Key或投稿。严禁将生成目录内的数据库/邀请码/环境打包；用 `scripts/package-h5.py` 根据源码白名单打包。
 
 2026-10-13新增阻塞：用户实际OpenAI登录返回地区不支持，公开演示可达不等于国内完整功能可用。后续优先独立部署与国内用户登录，具体见 `DOMESTIC_LOGIN_BLOCKER.md`，不要沿用“公开后即满足国内体验”的推断。

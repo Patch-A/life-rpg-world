@@ -1,0 +1,8 @@
+# Replace the hostname and point its DNS record at the approved deployment host.
+your-domain.example {
+    encode gzip
+    request_body {
+        max_size 3MB
+    }
+    reverse_proxy 127.0.0.1:3000
+}

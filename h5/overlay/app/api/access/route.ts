@@ -2,16 +2,15 @@ import {randomBytes} from 'node:crypto';
 import {authenticatedUser,digest,sessionCookie} from '@/lib/identity';
 import {databaseReady} from '@/server/store';
 import {boundedBody,noStore,RequestError} from '@/lib/request-guard';
+import {publicOrigin,requestOriginAllowed} from '@/server/origin';
 export const dynamic='force-dynamic';
 export const runtime='nodejs';
 function siteOrigin(){
- const configured=process.env.APP_ORIGIN;
- if(!configured)throw new RequestError('维护者尚未配置访问地址，请联系维护者。',503);
- const url=new URL(configured);
- if(url.origin!==configured||url.protocol!=='https:'&&!['localhost','127.0.0.1'].includes(url.hostname))throw new RequestError('访问地址配置无效。',503);
+ const url=publicOrigin();
+ if(!url)throw new RequestError('维护者尚未正确配置访问地址，请联系维护者。',503);
  return url;
 }
-function guard(req:Request){const origin=siteOrigin();if(new URL(req.url).origin!==origin.origin||req.headers.get('origin')!==origin.origin)throw new RequestError('请求来源无效，请从正式入口重试。',403);return origin;}
+function guard(req:Request){const origin=siteOrigin();if(!requestOriginAllowed(req))throw new RequestError('请求来源无效，请从正式入口重试。',403);return origin;}
 function cookie(token:string,seconds:number){return `${sessionCookie}=${token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${seconds}${siteOrigin().protocol==='https:'?'; Secure':''}`;}
 export async function GET(req:Request){return noStore({authenticated:!!authenticatedUser(req),aiEnabled:process.env.AI_ENABLED==='true'&&!!process.env.DEEPSEEK_API_KEY});}
 export async function POST(req:Request){

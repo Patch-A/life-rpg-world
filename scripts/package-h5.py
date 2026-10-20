@@ -24,7 +24,7 @@ for entry in entries:
     if hashlib.sha256(target.read_bytes()).hexdigest() != entry['sha256']:
         raise ValueError('Source changed after export: ' + name)
     names.add(name)
-output = root / 'outputs' / 'life-rpg-h5-submission-v0.1.zip'
+output = root / 'outputs' / 'life-rpg-h5-submission-v0.2.zip'
 with zipfile.ZipFile(output, 'w', zipfile.ZIP_DEFLATED) as archive:
     for entry in entries:
         archive.write(source / entry['path'], 'life-rpg-h5/' + entry['path'])

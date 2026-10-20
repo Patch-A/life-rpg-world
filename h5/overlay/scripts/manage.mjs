@@ -6,6 +6,15 @@ const [command,...args]=process.argv.slice(2);
 const hash=value=>createHash('sha256').update(value).digest('hex');
 function outputFile(){const name=args[args.indexOf('--out')+1];if(!args.includes('--out')||!name||!path.isAbsolute(name))throw Error('Specify --out with an absolute private file path.');return name;}
 try{
+ if(command==='doctor'){
+  const production=args.includes('--production')||args.includes('--submission'),submission=args.includes('--submission');
+  let validOrigin=false,https=false;try{const u=new URL(process.env.APP_ORIGIN||'');https=u.protocol==='https:';validOrigin=u.origin===process.env.APP_ORIGIN&&!u.username&&!u.password&&(https||u.protocol==='http:'&&['127.0.0.1','localhost'].includes(u.hostname));}catch{}
+  const checks=[['publicOrigin',validOrigin],['httpsRequiredForProduction',!production||https],['explicitPersistentDirectory',!production||!!process.env.H5_DATA_DIR&&path.isAbsolute(process.env.H5_DATA_DIR)]];
+  try{const db=openDatabase();checks.push(['initializedDatabase',!!db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='h5_sessions'").get()]);checks.push(['activeTrialAccount',Number(db.prepare('SELECT COUNT(*) AS n FROM h5_accounts WHERE disabled=0').get().n)>0]);}catch{checks.push(['initializedDatabase',false]);}
+  checks.push(['productionAIForSubmission',!submission||process.env.AI_ENABLED==='true'&&!!process.env.DEEPSEEK_API_KEY]);
+  console.log(JSON.stringify({checks:Object.fromEntries(checks),aiEnabled:process.env.AI_ENABLED==='true',keyPresent:!!process.env.DEEPSEEK_API_KEY,pass:checks.every(([,ok])=>ok),scope:'configuration only; not live network, model, security audit or submission acceptance'},null,2));
+  process.exitCode=checks.every(([,ok])=>ok)?0:1;
+ }else{
  const db=openDatabase(command==='init');
  if(command==='init'){
   const journal=db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='h5_migrations'").get();
@@ -35,5 +44,6 @@ try{
  }else if(command==='feedback'){
   const target=outputFile(),rows=db.prepare('SELECT id,user_id,category,helpful,step,message,version,created_at FROM feedback WHERE created_at>=? ORDER BY created_at DESC').all(new Date(Date.now()-90*86400000).toISOString());
   await writeFile(target,JSON.stringify(rows,null,2)+'\n',{flag:'wx',mode:0o600});console.log('Feedback exported to the requested private file.');
- }else throw Error('Commands: init | invite --out ABSOLUTE_PRIVATE_FILE | revoke ACCOUNT_ID | feedback --out ABSOLUTE_PRIVATE_FILE');
+ }else throw Error('Commands: init | doctor [--production|--submission] | invite --out ABSOLUTE_PRIVATE_FILE | revoke ACCOUNT_ID | feedback --out ABSOLUTE_PRIVATE_FILE');
+ }
 }catch(error){console.error(error.message);process.exitCode=1;}
