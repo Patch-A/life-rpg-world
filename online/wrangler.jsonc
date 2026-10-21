@@ -1,0 +1,12 @@
+{
+  "name": "life-rpg-world",
+  "main": "../outputs/online-worker/worker.js",
+  "compatibility_date": "2026-05-22",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {"directory": "../outputs/online-site", "binding": "ASSETS", "run_worker_first": true, "not_found_handling": "single-page-application"},
+  "observability": {"enabled": false},
+  "vars": {"AI_ENABLED": "false", "AI_USER_DAILY_LIMIT": "3", "AI_SITE_DAILY_LIMIT": "20", "DEEPSEEK_MODEL": "deepseek-flash"},
+  "d1_databases": [{"binding": "DB", "database_name": "life-rpg-world-public", "database_id": "00000000-0000-0000-0000-000000000000", "migrations_dir": "migrations"}]
+}

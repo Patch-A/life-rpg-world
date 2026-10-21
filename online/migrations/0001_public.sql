@@ -1,0 +1,16 @@
+CREATE TABLE saves(user_id TEXT PRIMARY KEY NOT NULL,data TEXT NOT NULL,revision INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE photos(id TEXT PRIMARY KEY NOT NULL,user_id TEXT NOT NULL,object_key TEXT NOT NULL,content_type TEXT NOT NULL,size INTEGER NOT NULL,created_at TEXT NOT NULL,deleted_at TEXT);
+CREATE INDEX photos_user_id_idx ON photos(user_id);
+CREATE TABLE agent_runs(id TEXT PRIMARY KEY NOT NULL,user_id TEXT NOT NULL,date TEXT NOT NULL,goal_id TEXT NOT NULL,status TEXT NOT NULL,result TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE INDEX agent_runs_user_date_idx ON agent_runs(user_id,date);
+CREATE INDEX agent_runs_date_idx ON agent_runs(date);
+CREATE INDEX agent_runs_created_idx ON agent_runs(created_at);
+CREATE TABLE feedback(id TEXT PRIMARY KEY NOT NULL,user_id TEXT NOT NULL,date TEXT NOT NULL,category TEXT NOT NULL,helpful TEXT NOT NULL,step TEXT NOT NULL,message TEXT NOT NULL,version TEXT NOT NULL,created_at TEXT NOT NULL);
+CREATE INDEX feedback_user_date_idx ON feedback(user_id,date);
+CREATE INDEX feedback_created_idx ON feedback(created_at);
+CREATE TABLE online_visitors(token_hash TEXT PRIMARY KEY NOT NULL,user_id TEXT NOT NULL UNIQUE,expires_at INTEGER NOT NULL,created_hour INTEGER NOT NULL);
+CREATE INDEX online_visitors_hour_idx ON online_visitors(created_hour);
+CREATE TABLE online_ai_budget(id TEXT PRIMARY KEY NOT NULL,user_id TEXT NOT NULL,date TEXT NOT NULL,minute INTEGER NOT NULL);
+CREATE INDEX online_ai_budget_date_idx ON online_ai_budget(date);
+CREATE INDEX online_ai_budget_user_date_idx ON online_ai_budget(user_id,date);
+CREATE INDEX online_ai_budget_minute_idx ON online_ai_budget(minute);

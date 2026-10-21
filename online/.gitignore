@@ -1,0 +1,3 @@
+wrangler.local.json
+.wrangler/
+.dev.vars*
