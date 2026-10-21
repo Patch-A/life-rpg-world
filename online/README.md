@@ -1,6 +1,6 @@
 # 免费托管的公开H5入口
 
-2026-10-21：沿用邻里陪伴的Cloudflare Workers Free＋D1 Free路线，正在部署验证。独立Worker名 `life-rpg-world`，独立D1名 `life-rpg-world-public`；不读写原Sites或本地存档，不开通R2、不升级付费套餐、不购买域名。实际公网URL与验证状态以根README和投稿材料为准。
+2026-10-21：已沿用邻里陪伴的Cloudflare Workers Free＋D1 Free路线部署，作品入口 <https://life-rpg-world.patch-neighborhood-demo.workers.dev>，真实DeepSeek已启用并通过两次虚构数据线上完整流程。独立Worker名 `life-rpg-world`，独立D1名 `life-rpg-world-public`；不读写原Sites或本地存档，不开通R2、不升级付费套餐、不购买域名。实际检查及未验事项见 `docs/PUBLIC_H5_DEPLOYMENT.md`。
 
 ## 版本边界
 

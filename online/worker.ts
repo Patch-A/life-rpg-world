@@ -42,7 +42,8 @@ async function access(req:Request){
  }
  return noStore({error:'不支持此操作'},405);
 }
-const routes:Record<string,Record<string,(r:Request)=>Promise<Response>>>={'/api/game':game,'/api/agent':agent,'/api/feedback':feedback};
+type Handlers=Partial<Record<'GET'|'POST'|'DELETE',(r:Request)=>Promise<Response>>>;
+const routes:Record<string,Handlers>={'/api/game':game,'/api/agent':agent,'/api/feedback':feedback};
 export default {async fetch(request:Request){
  const url=new URL(request.url);
  try{
@@ -51,8 +52,8 @@ export default {async fetch(request:Request){
    if(request.method!=='GET'&&request.headers.get('origin')!==url.origin)return noStore({error:'请求来源无效'},403);
    if(url.pathname==='/api/access')return await access(request);
    const uid=await visitor(request);if(!uid)return noStore({error:'请先开启自己的访客星球'},401);
-   if(url.pathname==='/api/photos')return request.method==='GET'?noStore({photos:[]}):noStore({error:'免费投稿版暂不提供照片上传，请先使用文字记录。原站点照片保留。'},403);
-   const handler=routes[url.pathname]?.[request.method];if(!handler)return noStore({error:'接口不存在'},404);
+   if(url.pathname==='/api/photos')return request.method==='GET'?(url.searchParams.get('list')==='1'?noStore({photos:[]}):noStore({error:'照片不存在'},404)):noStore({error:'免费投稿版暂不提供照片上传，请先使用文字记录。原站点照片保留。'},403);
+   const handler=routes[url.pathname]?.[request.method as keyof Handlers];if(!handler)return noStore({error:'接口不存在'},404);
    // Bound bytes before the legacy game route reads text; do not trust length headers.
    let req=request;
    if(url.pathname==='/api/game'&&request.method==='POST'){

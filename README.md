@@ -4,9 +4,11 @@
 
 ![人生RPG · 成长星球封面](docs/submission-cover.png)
 
-**H5 v0.2开源源码版：本地登录、双账号隔离和真实AI流程已验证；尚未独立公网部署、尚未正式投稿。**
+**H5 v0.3公开试用版已部署，真实DeepSeek已启用，无需ChatGPT登录或邀请码。尚未代替本人正式投稿。**
 
-[下载H5源码与投稿附件](https://github.com/Patch-A/life-rpg-world/releases/tag/h5-submission-v0.2) · [投稿材料入口](submission/README.md) · [本地运行说明](h5/README.md) · [版本状态](docs/H5_SUBMISSION_STATUS.md)
+[打开在线作品](https://life-rpg-world.patch-neighborhood-demo.workers.dev) · [v0.3投稿附件](https://github.com/Patch-A/life-rpg-world/releases/tag/online-submission-v0.3) · [投稿材料入口](submission/README.md) · [本地运行说明](h5/README.md) · [线上验证记录](docs/PUBLIC_H5_DEPLOYMENT.md)
+
+在线版使用本人Cloudflare Workers/D1免费额度，DeepSeek用量由维护者承担。访客点击同意后各自建立独立存档，凭据保存在本浏览器30天，没有自动找回；请及时导出。照片上传暂不开放。免费额度和默认域名不保证所有国内网络可达，实际手机流量/支付宝内浏览器仍待本人核验。
 
 ## 产品做什么
 
@@ -18,12 +20,13 @@
 
 | 项目 | 当前情况 |
 | --- | --- |
-| 独立H5 | Node.js24 / Next.js / SQLite / 私有照片目录，独立试用账号，无需ChatGPT |
+| 独立H5 | 在线v0.3为React静态资源＋Cloudflare Worker＋D1；本地v0.2保留Node24/Next/SQLite |
 | 本地入口 | 运行后打开 `http://127.0.0.1:3187`，仅当前电脑可访问 |
 | 固定演示 | `/demo`，明确标注虚构样例，不调用模型、不建立私人存档 |
-| 真实AI | 服务端DeepSeek已实现并本地验证，下载包默认关闭，不含Key |
-| 私人账号 | 本应用生成的专属邀请码，首次本地启动生成，不由外部平台提供 |
-| 独立在线服务 | 尚未部署，仓库链接不等于在线AI体验网址 |
+| 真实AI | 在线服务已启用并验证生成/确认/记录/引用复盘；每访客3次/日，全站20次/日，失败计数 |
+| 私人账号 | 在线为每浏览器独立访客，无需邀请码；本地v0.2仍由启动器自动生成专属邀请码 |
+| 独立在线服务 | [HTTPS作品入口](https://life-rpg-world.patch-neighborhood-demo.workers.dev)，不是GitHub页面或localhost |
+| 照片 | 线上免费版不上传；本地及旧Sites保留已有实现和照片 |
 | 支付宝接入 | 尚无小程序上架、身份授权、账单、步数、支付或阿宝分发 |
 | 投稿 | 已准备源码、封面、文案和运行材料，尚无正式提交回执 |
 
@@ -69,9 +72,11 @@ GitHub自动生成的仓库Source code ZIP没有Git元数据，上述导出步�
 - [`h5/overlay/deploy/`](h5/overlay/deploy/)：单机HTTPS模板，尚未在云主机验收。
 - [`docs/LOW_COST_HOSTING_REVIEW.md`](docs/LOW_COST_HOSTING_REVIEW.md)：低成本候选及未验证条件。
 
-单实例访问SQLite，数据目录须持久化且不能暴露为静态文件。正式上线还需托管、HTTPS、可信公开Origin、备份恢复、正式模型预算及目标网络验收。低成本候选尚未选定，不承诺免费资格或国内访问质量。
+本地SQLite部署仍需单实例和持久磁盘。本轮线上使用独立Workers/D1免费额度，适配和复现步骤见 [`online/README.md`](online/README.md)。不购买域名、不升级套餐、不开通R2。两个项目共享本人Cloudflare账号的免费配额；本项目次数限额不限制模型账户其他应用的支出。长期备份恢复、真机及目标网络仍待补验。
 
 ## 已完成的验证
+
+2026-10-21线上HTTPS页面、两访客隔离/保存/并发冲突、伪造身份与跨源拒绝、反馈回执/去重/隔离及合成访客删除通过。发出两次真实DeepSeek请求，虚构目标生成—编辑确认—防重复—虚构记录—带有效引用复盘—保存通过；删除草案不会返还AI次数。当前电脑浏览器已看到真实公开首页，见[截图](docs/public-h5-home.png)及[部署记录](docs/PUBLIC_H5_DEPLOYMENT.md)。尚未验证手机流量、全部国内运营商、支付宝内浏览器或真实用户效果。
 
 2026-10-20生产编译和TypeScript通过。实际HTTP覆盖双虚构账号登录、匿名/伪造身份拒绝、存档和照片隔离、并发冲突、反馈幂等、退出与停用、关闭AI无模型调用。另以两次真实DeepSeek请求验证虚构目标生成、编辑确认、防重复确认、虚构记录及带有效引用的复盘保存。
 
