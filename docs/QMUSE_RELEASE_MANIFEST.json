@@ -6,7 +6,7 @@
   "uiVersion": 4,
   "runtimeSourceCommit": "0eb5d01",
   "publicUrl": "https://render.qmuse.pub/p/muse/4351857479964072/index.html",
-  "formalSubmission": false,
+  "formalSubmission": true,
   "ai": {
     "provider": "DeepSeek",
     "model": "deepseek-flash",
@@ -32,5 +32,14 @@
     "long_term_recovery",
     "real_user_effect"
   ],
-  "privateDataIncluded": false
+  "privateDataIncluded": false,
+  "contest": {
+    "submittedAtDisplayed": "2026-10-22 22:47",
+    "track": "生活好帮手",
+    "status": "审核中",
+    "recordId": "d31420d01c9d11",
+    "recordUrl": "https://abao.alipay.com/emerge#/works/d31420d01c9d11",
+    "wishAssociation": null,
+    "reviewPassed": false
+  }
 }

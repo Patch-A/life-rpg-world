@@ -4,7 +4,7 @@
 
 ![人生RPG · 成长星球封面](docs/submission-cover.png)
 
-**2026-10-22：当前投稿入口转向 QMuse（妙思）。** [打开妙思作品](https://render.qmuse.pub/p/muse/4351857479964072/index.html) · [部署与验证记录](docs/QMUSE_DEPLOYMENT.md) · [QMuse源码](qmuse/)。已公开发布，访客存档、两次真实DeepSeek的拆解—修改确认—记录—引用复盘及反馈回执均已验证；尚未正式投递比赛。密钥仅在服务端，旧版存档保留。
+**2026-10-22：当前投稿入口转向 QMuse（妙思）。** [打开妙思作品](https://render.qmuse.pub/p/muse/4351857479964072/index.html) · [部署与验证记录](docs/QMUSE_DEPLOYMENT.md) · [QMuse源码](qmuse/)。已公开发布，访客存档、两次真实DeepSeek的拆解—修改确认—记录—引用复盘及反馈回执均已验证；2026-10-22 22:47已正式投递“生活好帮手”赛道，主办方个人中心显示“审核中”，尚非审核通过；详见[投递记录](docs/CONTEST_SUBMISSION_20261022.md)。密钥仅在服务端，旧版存档保留。
 
 以下 v0.3 信息为2026-10-21 Cloudflare历史部署记录，不替代当前妙思投稿入口。
 
@@ -32,7 +32,7 @@
 | 独立在线服务 | [HTTPS作品入口](https://life-rpg-world.patch-neighborhood-demo.workers.dev)，不是GitHub页面或localhost |
 | 照片 | 线上免费版不上传；本地及旧Sites保留已有实现和照片 |
 | 支付宝接入 | 尚无小程序上架、身份授权、账单、步数、支付或阿宝分发 |
-| 投稿 | 已准备源码、封面、文案和运行材料，尚无正式提交回执 |
+| 投稿 | QMuse v4已正式投递，主办方显示审核中；历史H5资料保留 |
 
 旧Sites保留为历史展示，ChatGPT登录已出现地区限制，公开AI已关闭。旧URL不替代当前H5的可用性证明。旧存档未清空，新旧账号尚未自动合并。
 
