@@ -16,8 +16,8 @@ async function reserve(store,ownerKey,now){
  }
  return true;
 }
-export default async({req,res})=>{
- let proposalId='',store,ownerKey='';
+export default async({req,res,error:reportError})=>{
+ let proposalId='',store,ownerKey='',stage='request';
  try{
   const userId=req.headers?.['x-appwrite-user-id'];
   if(typeof userId!=='string'||!userId||userId.length>128)throw reject('请在妙思作品页面建立访客会话后重试。',401);
@@ -59,13 +59,16 @@ export default async({req,res})=>{
   if(path==='/api/agent'){
    if(method==='GET'){
     if(query.id){const id=z.string().uuid().parse(query.id),row=await store.proposal(id,ownerKey);if(!row||row.createdAt<Date.now()-30*86400000)throw reject('草案不存在、过期或无权访问',404);return res.json({status:row.status,run:row.payload?JSON.parse(row.payload):null});}
+    stage='proposal-status-cleanup';
     if(apiKey)await store.purge(Date.now());
     const used=await store.count(`u:${day()}:${ownerKey}`);return res.json({available:!!apiKey,model:'deepseek-flash',dailyLimit:3,remaining:Math.max(0,3-used)});
    }
    if(method==='DELETE'){await store.removeProposal(z.string().uuid().parse(body.id),ownerKey);return res.json({deleted:true});}
    const a=input.parse(body);if(!apiKey)throw reject('作者尚未开放本妙思作品的AI，手动功能仍可使用。',503);
+   stage='proposal-snapshot';
    const saved=await store.snapshot(ownerKey);if(!saved?.state.profile)throw reject('请先创建角色');const state=normalizeGame(saved.state);
    if(state.profile.birth&&ageAt(state.profile.birth,day())<18)throw reject('当前AI仅面向成年用户试用',403);
+   stage='proposal-lookup';
    const previous=await store.proposal(a.requestId,ownerKey);if(previous){if(previous.status==='complete')return res.json({run:JSON.parse(previous.payload)});throw reject('这次请求已经处理，请查看草案或发起新请求。',409);}
    const goal=a.goalId?state.goals.find(g=>g.id===a.goalId):undefined;
    if((a.goalId&&!goal)||(!goal&&!a.newGoal))throw reject('请选择或填写目标');
@@ -74,13 +77,17 @@ export default async({req,res})=>{
    const records=goal?state.logs.filter(l=>!l.undone&&l.goalId===goal.id).sort((x,y)=>y.date.localeCompare(x.date)||y.at.localeCompare(x.at)).slice(0,12).map(l=>({id:l.id,title:l.title,date:l.date,value:l.value,unit:l.unit,note:(l.note||'').slice(0,350)})):[];
    if(a.mode==='review'&&(!goal||!records.length))throw reject('请先选择已有目标并记录行动，再做复盘。');
    const now=Date.now(),createdAt=new Date(now).toISOString();
+   stage='proposal-create';
    if(!await store.reserveProposal(a.requestId,{ownerKey,status:'pending',payload:'',createdAt:now}))throw reject('请求标识已使用，请发起新请求。',409);
    proposalId=a.requestId;
+   stage='proposal-quota';
    if(!await reserve(store,ownerKey,now))throw reject('本作品AI次数已用完或正在生成，请稍后再试，手动功能仍可用。',429);
    const context=goal?{title:goal.title,successCriteria:goal.successCriteria||'用户设置的累计目标',target:goal.target,unit:goal.unit,progress:progress(state,goal)}:{...a.newGoal,unit:'分钟',progress:0};
+   stage='proposal-model';
    const result=await generateActions(apiKey,'deepseek-flash',{mode:a.mode,goal:context,availableMinutes:a.minutes,obstacle:a.obstacle,records},a.minutes,new Set(records.map(l=>l.id)));
    if(a.mode==='review'&&!result.sourceLogIds.length)throw reject('复盘未引用实际记录，本次未保存，请重试。',503);
    const run={id:a.requestId,mode:a.mode,goalId:goal?.id||'',...(!goal?{newGoal:{...a.newGoal,unit:'分钟'}}:{}),result,createdAt,model:'deepseek-flash'};
+   stage='proposal-save';
    await store.updateProposal(a.requestId,{status:'complete',payload:JSON.stringify(run)});return res.json({run});
   }
   if(path==='/api/feedback'){
@@ -91,6 +98,12 @@ export default async({req,res})=>{
   }
   throw reject('接口不存在',404);
  }catch(error){
+  if(!error.status&&!(error instanceof z.ZodError)&&!(error instanceof ModelError)){
+   // Only bounded diagnostic metadata; never log request bodies, identifiers, messages or secrets.
+   const type=typeof error.type==='string'&&/^[a-z_]{1,80}$/.test(error.type)?error.type:'unknown';
+   const code=Number.isInteger(error.code)?error.code:0;
+   reportError?.(JSON.stringify({stage,code,type}));
+  }
   if(proposalId&&store)await store.updateProposal(proposalId,{status:'failed'}).catch(()=>{});
   if(error instanceof z.ZodError)return res.json({error:'输入格式无效，请检查目标、时间与确认项。'},400);
   if(error instanceof ModelError)return res.json({error:error.message},error.status);
