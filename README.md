@@ -4,6 +4,10 @@
 
 ![人生RPG · 成长星球封面](docs/submission-cover.png)
 
+**2026-10-22：当前投稿入口转向 QMuse（妙思）。** [打开妙思作品](https://render.qmuse.pub/p/muse/4351857479964072/index.html) · [部署与验证记录](docs/QMUSE_DEPLOYMENT.md) · [QMuse源码](qmuse/)。已公开发布，访客存档、两次真实DeepSeek的拆解—修改确认—记录—引用复盘及反馈回执均已验证；尚未正式投递比赛。密钥仅在服务端，旧版存档保留。
+
+以下 v0.3 信息为2026-10-21 Cloudflare历史部署记录，不替代当前妙思投稿入口。
+
 **H5 v0.3公开试用版已部署，真实DeepSeek已启用，无需ChatGPT登录或邀请码。尚未代替本人正式投稿。**
 
 [打开在线作品](https://life-rpg-world.patch-neighborhood-demo.workers.dev) · [v0.3投稿附件](https://github.com/Patch-A/life-rpg-world/releases/tag/online-submission-v0.3) · [投稿材料入口](submission/README.md) · [本地运行说明](h5/README.md) · [线上验证记录](docs/PUBLIC_H5_DEPLOYMENT.md)

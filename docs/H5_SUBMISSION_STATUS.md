@@ -1,3 +1,5 @@
+> 2026-10-22更新：当前投稿版本已转QMuse v0.4，实际公开地址为 https://render.qmuse.pub/p/muse/4351857479964072/index.html 。本文件保留历史H5/Sites记录，当前资料以[submission入口](../submission/README.md)及[妙思部署记录](QMUSE_DEPLOYMENT.md)为准。尚未正式投递比赛。
+
 # H5参赛试用版状态
 
 更新：2026-10-21。当前线上版本：`online-submission-v0.3`。状态：公开HTTPS和服务端真实AI已部署并验收，未代替本人正式投稿。

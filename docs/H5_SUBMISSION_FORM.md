@@ -1,3 +1,5 @@
+> 2026-10-22更新：当前投稿版本已转QMuse v0.4，实际公开地址为 https://render.qmuse.pub/p/muse/4351857479964072/index.html 。本文件保留历史H5/Sites记录，当前资料以[submission入口](../submission/README.md)及[妙思部署记录](QMUSE_DEPLOYMENT.md)为准。尚未正式投递比赛。
+
 # 人生RPG · 成长星球｜H5投稿填写材料
 
 2026-10-20，候选版本 `h5-submission-v0.2`。这是可复用的填写文案，尚未提交。当前已有独立H5源码、本地真实HTTP与真实DeepSeek验证，尚无独立公网地址/正式模型配置。旧Sites链接不能替代此H5入口；不得在报名表中声称已完成独立公开上线。

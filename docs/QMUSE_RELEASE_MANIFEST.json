@@ -1,0 +1,36 @@
+{
+  "date": "2026-10-22",
+  "platform": "QMuse",
+  "appId": "4351857479964072",
+  "platformVersion": "90100368",
+  "uiVersion": 4,
+  "runtimeSourceCommit": "0eb5d01",
+  "publicUrl": "https://render.qmuse.pub/p/muse/4351857479964072/index.html",
+  "formalSubmission": false,
+  "ai": {
+    "provider": "DeepSeek",
+    "model": "deepseek-flash",
+    "successfulLiveCalls": 2,
+    "dailyPerIdentity": 3,
+    "dailyPerEnvironment": 20
+  },
+  "verified": [
+    "public_publish",
+    "independent_visitor_save",
+    "cross_version_visitor_recovery",
+    "edit_candidate_confirm",
+    "manual_record",
+    "review_valid_citation_save",
+    "refresh_recovery",
+    "feedback_receipt"
+  ],
+  "unverified": [
+    "physical_phone",
+    "alipay_browser",
+    "all_domestic_networks",
+    "direct_table_adversarial_access",
+    "long_term_recovery",
+    "real_user_effect"
+  ],
+  "privateDataIncluded": false
+}
