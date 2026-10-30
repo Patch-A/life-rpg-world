@@ -53,7 +53,7 @@
   .assistant-scene__pedestal{bottom:54px;width:148px;height:18px}
   .assistant-scene__actor{top:12px;right:8%;bottom:72px;left:14%}
   .assistant-scene__touch{inset:52px 8% 82px}
-  .assistant-scene__bubble{right:10px;bottom:10px;left:10px;max-height:96px;padding:9px 11px;font-size:12.5px;line-height:1.65}
+  .assistant-scene__bubble{right:10px;bottom:10px;left:10px;max-height:96px;padding:9px 11px;font-size:13.5px;line-height:1.7}
   .assistant-scene__replay{width:44px;padding:0}
   .assistant-scene__replay-label{display:none}
 }

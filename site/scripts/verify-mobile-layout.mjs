@@ -26,22 +26,48 @@ const nthBlock=(text,selector,nth=0)=>{
   const close=text.indexOf('}',open);
   return close<0?'':text.slice(open+1,close);
 };
-// 找出所有 @media(max-width:760px) 块并拼在一起。
+// 找出 css 里所有 `@media(max-width:<mark>px){...}` 块的内容并拼在一起。
 // 只取第一块是错的：globals.css 里有多块 760px 断点，手机规则可能落在任何一块。
-const mobileCss=()=>{
-  const mark='@media(max-width:760px){';
+const mediaBlocks=(css,mark)=>{
+  const needle=`@media(max-width:${mark}px){`;
   const parts=[];
-  for(let at=globals.indexOf(mark);at>-1;at=globals.indexOf(mark,at+1)){
+  for(let at=css.indexOf(needle);at>-1;at=css.indexOf(needle,at+1)){
     let depth=0,open=-1;
-    for(let i=at;i<globals.length;i++){
-      if(globals[i]==='{'){depth++;if(open<0)open=i;}
-      else if(globals[i]==='}'){depth--;if(depth===0){parts.push(globals.slice(open+1,i));break;}}
+    for(let i=at;i<css.length;i++){
+      if(css[i]==='{'){depth++;if(open<0)open=i;}
+      else if(css[i]==='}'){depth--;if(depth===0){parts.push(css.slice(open+1,i));break;}}
     }
   }
   return parts.join('\n');
 };
-const mobile=mobileCss();
-assert.ok(mobile.includes('{')||mobile.includes(':'),'globals.css 必须存在 760px 断点');
+const mobile=mediaBlocks(globals,760);
+assert.ok(mobile.trim().length>0,'globals.css 必须存在 760px 断点');
+
+// 从声明块里取一条属性的数值，换算成 px（1rem = 16px）。取不到返回 NaN——
+// NaN 和任何阈值比较都是 false，断言会红，不会静默通过。
+const pxOf=(block,prop)=>{
+  const m=block.match(new RegExp(`(?:^|[;{\\s])${prop}:\\s*([\\d.]+)(px|rem)`));
+  if(!m)return NaN;
+  const n=Number(m[1]);
+  return m[2]==='rem'?n*16:n;
+};
+// 在某个断点块里找出选择器对应的所有声明块，按出现顺序返回。
+// 一个选择器在一个断点里可以出现多次（`.a,.b{max-width}` 在前、`.a{font-size}` 在后），
+// 只取第一条会漏掉真正设了字号的那条。
+const rulesIn=(css,selector)=>{
+  const esc=selector.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+  const re=new RegExp(`(?:^|[,}\\n])\\s*${esc}\\s*(?=[,{])`,'g');
+  const out=[];
+  for(let hit=re.exec(css);hit;hit=re.exec(css)){
+    const open=css.indexOf('{',hit.index+hit[0].length);
+    if(open<0)continue;
+    if(css.lastIndexOf('}',open)>hit.index)continue;
+    const close=css.indexOf('}',open);
+    if(close<0)continue;
+    out.push(css.slice(open+1,close));
+  }
+  return out;
+};
 
 // 「我的」页人物面板：手机断点里必有一条带 grid-template-areas 的 .character-panel 规则。
 // 同一个选择器在别的断点里还有「只改 padding」的版本，所以要按「哪一块里有 areas」来定位。
@@ -87,5 +113,43 @@ assert.ok(scroller.includes('overscroll-behavior:contain'),'滚动容器必须�
 const memTsx=source('components/memory-list.tsx');
 assert.ok(memTsx.includes('onClearAll'),'清空按钮必须由弹窗容器提供回调，才能留在卡片滚动区之外');
 assert.equal(/window\.confirm/.test(memTsx),false,'不得用 window.confirm 替代页面级确认框');
+
+// 6. 字号下限。桌面把标签写成 .65~.77rem（10.4~12.3px）在 390 宽的屏上就是「所有内容都很小」，
+//    390×844 实测正文 13.5px、按钮 12.5px，用户的原话是要凑近看。这里按像素值卡下限，
+//    而不是检查字符串里有没有某个字号——改大改小都要落在阈值内，否则红。
+const chatCss=source('components/chat-room.css');
+const chatMobile=mediaBlocks(chatCss,600);
+assert.ok(chatMobile.trim().length>0,'chat-room.css 必须有 600px 断点：聊天是主界面，手机字号得单独定');
+const readPx=(css,selector,prop,label)=>{
+  const blocks=rulesIn(css,selector);
+  assert.ok(blocks.length>0,`${label}：断点里必须有 ${selector} 规则`);
+  // 层叠里最后一条声明生效，所以取「声明了这条属性的最后一块」。
+  const withProp=blocks.filter(b=>Number.isFinite(pxOf(b,prop)));
+  assert.ok(withProp.length>0,`${label}：${selector} 必须显式写出 ${prop}，否则继承桌面值就是小字`);
+  return pxOf(withProp[withProp.length-1],prop);
+};
+const bubbleFs=readPx(chatMobile,'.chat-room__bubble','font-size','聊天气泡');
+assert.ok(bubbleFs>=15,`手机聊天气泡正文必须 ≥15px，实际 ${bubbleFs}px`);
+for(const sel of ['.chat-room__claim','.chat-room__keep','.chat-room__undo','.chat-room__delete']){
+  const fs=readPx(chatMobile,sel,'font-size','记录上的操作按钮');
+  assert.ok(fs>=14,`手机上 ${sel} 文字必须 ≥14px，实际 ${fs}px`);
+  const h=readPx(chatMobile,sel,'min-height','记录上的操作按钮');
+  assert.ok(h>=44,`手机上 ${sel} 触控高度必须 ≥44px，实际 ${h}px：40px 以下手指点不准`);
+}
+const exportH=readPx(chatMobile,'.chat-room__export','min-height','导出按钮');
+assert.ok(exportH>=44,`手机上导出按钮触控高度必须 ≥44px，实际 ${exportH}px`);
+const metaFs=readPx(chatMobile,'.chat-room__record-meta','font-size','记录元信息');
+assert.ok(metaFs>=13,`手机记录元信息必须 ≥13px，实际 ${metaFs}px`);
+const sceneMobileCss=mediaBlocks(source('components/assistant-scene.css'),600);
+const lineFs=readPx(sceneMobileCss,'.assistant-scene__bubble','font-size','记录官的话');
+assert.ok(lineFs>=13.5,`手机上记录官的话必须 ≥13.5px，实际 ${lineFs}px`);
+// globals 里的标签类：手机断点里必须抬到 12.5px 以上。
+for(const sel of ['.chapter-tag','.level-pill','.xp-strip','.task-meta .reward','.bag-grid small','.save-foot','.private-label']){
+  const fs=readPx(mobile,sel,'font-size',`手机标签 ${sel}`);
+  assert.ok(fs>=12.5,`手机上 ${sel} 必须 ≥12.5px，实际 ${fs}px`);
+}
+// 桌面字号不得被顺手改掉：抬字号只发生在手机断点里。
+const deskMeta=nthBlock(chatCss,'.chat-room__record-meta{');
+assert.ok(deskMeta.includes('11.5px'),'桌面记录元信息字号应保持 11.5px：手机字号只在 600px 断点里抬');
 
 console.log('PASS 手机排版的样式与结构约束成立');
