@@ -41,3 +41,35 @@ assert.equal(sanitized.journal[0].domain,undefined);assert.equal(sanitized.journ
 assert.equal(sanitized.journal[1].summary,'记录二');
 assert.equal(sanitized.memory.length,1);assert.equal(sanitized.memory[0].text,'喜欢用命令行');
 console.log('PASS 模型字段异常不阻断对话写入');
+// 认领记录为行动、当日领域经验上限、删除联动撤销、记忆可删
+const jid=after.journal[0].id;
+const c=reduceGame(after,{type:'claim-record',id:jid},new Date());
+assert.equal(c.journal[0].status,'claimed');assert.ok(c.journal[0].logId);
+assert.equal(c.tasks.length,after.tasks.length+1);assert.equal(c.tasks.at(-1).unit,'次');assert.equal(c.tasks.at(-1).repeat,false);assert.equal(c.tasks.at(-1).title,'看完第三章');
+assert.equal(c.logs.length,after.logs.length+1);assert.equal(c.logs.at(-1).value,1);assert.equal(c.logs.at(-1).id,c.journal[0].logId);assert.equal(c.logs.at(-1).note,'今天看完了第三章');
+assert.equal(xp(c),xp(after)+30,'认领后应得一次领域经验');
+// 当日该领域经验已满时，认领成功但 +0，且不报错
+const second={...turn,clientId:crypto.randomUUID(),records:[{summary:'又学了一点',text:'又学了一点',domain:'mind',tags:[]}],memoryCandidates:[]};
+let d=reduceGame(c,second,new Date());
+d=reduceGame(d,{type:'claim-record',id:d.journal[1].id},new Date());
+assert.equal(d.journal[1].status,'claimed');assert.equal(xp(d),xp(c),'同日同领域不重复给经验');
+// 删除已认领的记录，对应 Log 一并撤销
+const claim2LogId=d.journal[1].logId;
+const e=reduceGame(d,{type:'delete-journal',id:d.journal[1].id},new Date());
+assert.equal(e.journal.length,d.journal.length-1);assert.equal(e.logs.find(l=>l.id===claim2LogId).undone,true);
+// 删除唯一一条已认领记录，经验随之归零（不留经验）
+const solo=reduceGame(c,{type:'delete-journal',id:jid},new Date());
+assert.equal(solo.logs.find(l=>l.id===c.journal[0].logId).undone,true);assert.equal(xp(solo),0,'删除记录应撤销对应经验');
+// 删除待认领的记录不动 Log
+const pend=reduceGame(after,{type:'delete-journal',id:after.journal[0].id},new Date());
+assert.equal(pend.journal.length,0);assert.equal(pend.logs.length,after.logs.length);assert.equal(xp(pend),xp(after));
+// 重复认领报错
+assert.throws(()=>reduceGame(c,{type:'claim-record',id:jid},new Date()),/已经认领/);
+// 无方向的记录认领时归入认知
+const fallback=reduceGame(sanitized,{type:'claim-record',id:sanitized.journal[0].id},new Date());
+assert.equal(fallback.tasks.at(-1).domain,'mind');assert.equal(fallback.tasks.at(-1).originRunId,sanitized.journal[0].runId);
+// 记忆删除与清空
+assert.equal(reduceGame(merged,{type:'delete-memory',id:merged.memory[0].id},new Date()).memory.length,0);
+assert.equal(reduceGame(merged,{type:'delete-memory'},new Date()).memory.length,0);
+assert.equal(reduceGame(merged,{type:'delete-memory',id:'不存在'},new Date()).memory.length,1);
+console.log('PASS 认领成行动、经验上限、删除联动、记忆可删');
