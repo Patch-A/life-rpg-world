@@ -1,0 +1,5 @@
+.memory-facts{display:grid;gap:12px}
+.memory-fact{padding:16px;background:linear-gradient(145deg,#27203f,#141b30);border:1px solid #92719648;border-radius:14px;min-width:0}
+.memory-fact__head,.memory-fact__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.memory-fact p{margin:8px 0 10px;line-height:1.7;overflow-wrap:anywhere}
+.memory-fact__foot .note{color:#9aa4c0}

@@ -85,6 +85,57 @@ assert.equal(reduceGame(merged,{type:'delete-memory-fact',id:merged.memory[0].id
 assert.equal(reduceGame(merged,{type:'delete-memory-fact'},new Date()).memory.length,0);
 assert.equal(reduceGame(merged,{type:'delete-memory-fact',id:'不存在'},new Date()).memory.length,1);
 console.log('PASS 认领成行动、经验上限、删除联动、记忆可删');
+// ---- 记忆管理页：单条删除只删指定 id、清空全部、绝不触碰生日与人生纪念 ----
+const memFacts=[
+ {id:'mf1',text:'在读一本讲并发的书',kind:'situation',firstSeen:'2026-10-01T00:00:00.000Z',lastSeen:'2026-10-01T00:00:00.000Z',weight:1},
+ {id:'mf2',text:'喜欢清晨写作',kind:'preference',firstSeen:'2026-10-02T00:00:00.000Z',lastSeen:'2026-10-02T00:00:00.000Z',weight:3},
+ {id:'mf3',text:'住在上海',kind:'fact',firstSeen:'2026-09-01T00:00:00.000Z',lastSeen:'2026-09-30T00:00:00.000Z',weight:1},
+];
+const memBase={...merged,memory:memFacts};
+const oneGone=reduceGame(memBase,{type:'delete-memory-fact',id:'mf1'},new Date());
+assert.equal(oneGone.memory.length,2,'单条删除只能删掉一条');
+assert.deepEqual(oneGone.memory.map(m=>m.id),['mf2','mf3'],'单条删除必须只删指定 id，其他事实原样保留');
+const unknownGone=reduceGame(memBase,{type:'delete-memory-fact',id:'不存在'},new Date());
+assert.deepEqual(unknownGone.memory.map(m=>m.id),['mf1','mf2','mf3'],'id 不存在时不得退化成清空全部');
+const allGone=reduceGame(memBase,{type:'delete-memory-fact'},new Date());
+assert.equal(allGone.memory.length,0,'不带 id 必须清空全部记忆');
+// 差分：两份存档只在 birthdays / milestones 上不同，清空全部记忆后记忆部分必须一致，
+// 且生日与人生纪念原样保留（delete-memory 是给它们用的，不能被记忆删除顺手带走）。
+const memPlain={...memBase,birthdays:[],milestones:[]};
+const memWith={...memBase,
+ birthdays:[{id:'bd1',year:2000,date:'2000-01-01',label:'不该被删的生日',calendar:'solar',adjustment:'',age:26,note:'',wish:'',photos:[],at:'',updatedAt:'',archived:false}],
+ milestones:[{id:'ms1',kind:'custom',title:'不该被删的纪念',date:'2020-01-01',note:'',photos:[],at:'',updatedAt:'',archived:false}]};
+const clearPlain=reduceGame(memPlain,{type:'delete-memory-fact'},new Date());
+const clearWith=reduceGame(memWith,{type:'delete-memory-fact'},new Date());
+assert.deepEqual(clearWith.memory,clearPlain.memory,'生日/纪念不影响清空记忆的结果');
+assert.equal(clearPlain.memory.length,0,'差分两侧都必须真的清空');
+assert.equal(clearWith.birthdays.length,1,'清空记忆不得删除生日');
+assert.equal(clearWith.birthdays[0].id,'bd1');
+assert.equal(clearWith.milestones.length,1,'清空记忆不得删除人生纪念');
+assert.equal(clearWith.milestones[0].id,'ms1');
+console.log('PASS 记忆单条删除、清空全部、不触碰生日与人生纪念');
+// 记忆管理页结构冒烟：渲染测试宿主不存在，只能守住「派发哪个动作、清空前有没有确认」。
+const memoryList=source('components/memory-list.tsx');
+assert.ok(memoryList.includes("act({type:'delete-memory-fact',id:m.id})"),'单条删除必须派发带 id 的 delete-memory-fact');
+assert.ok(memoryList.includes("act({type:'delete-memory-fact'})"),'清空必须派发不带 id 的 delete-memory-fact');
+assert.equal(memoryList.includes("type:'delete-memory'"),false,'记忆管理页不得调用生日/纪念用的 delete-memory');
+assert.ok(memoryList.includes('它还没有记住什么'),'空记忆时必须给出那句文案');
+// 先确认两个标记都存在，再比较先后：标记缺失时 indexOf 返回 -1 会让比较恒真。
+const clearCall=memoryList.indexOf("act({type:'delete-memory-fact'})");
+const clearConfirm=memoryList.indexOf('window.confirm');
+assert.ok(clearCall>-1&&clearConfirm>-1,'清空调用与清空确认都必须存在');
+assert.ok(clearCall>clearConfirm,'清空必须先确认，再派发删除');
+console.log('PASS 记忆管理页结构：单条/清空分别派发、清空前必须确认、不碰 delete-memory');
+// 朗读开关：写入的必须就是 assistant-scene 读的那个值（关 = '0'），否则用户关不掉朗读。
+const assistantScene=source('components/assistant-scene.tsx');
+const pageSource=source('app/page.tsx');
+assert.ok(/localStorage\.getItem\('life-rpg-voice'\)\s*===\s*'0'/.test(assistantScene),'记录官必须以 === \'0\' 判断朗读已关闭');
+assert.ok(/localStorage\.getItem\('life-rpg-voice'\)\s*!==\s*'0'/.test(pageSource),'首次加载必须按同一读法恢复开关状态');
+assert.ok(/const \[voice,setVoice\]=useState\(true\)/.test(pageSource),'朗读开关默认开启，且是独立的 UI 状态');
+assert.ok(/localStorage\.setItem\('life-rpg-voice',v\?'1':'0'\)/.test(pageSource),'写入值必须与读法精确配对：开=1 关=0');
+assert.equal(/localStorage\.setItem\('life-rpg-voice'[^)]*'true'/.test(pageSource),false,'不得写入 true/false：读法只认 0，会失配');
+assert.ok(pageSource.includes("open('memory-facts')")&&pageSource.includes("modal==='memory-facts'"),'「我的」必须有记忆入口并接上弹窗');
+console.log('PASS 朗读开关读写值配对（关=0），我的页有记忆入口');
 // 聊天契约：防编造、姿态升级需同意、降级放行、契约限流
 const agentContract=url(source('lib/agent-contract.ts').replace("from 'zod'",`from '${import.meta.resolve('zod')}'`));
 const chatContract=url(source('lib/ai/chat-contract.ts').replaceAll("from '@/lib/game'",`from '${game}'`).replace("from 'zod'",`from '${import.meta.resolve('zod')}'`));
