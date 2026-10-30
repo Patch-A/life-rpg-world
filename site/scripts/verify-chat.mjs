@@ -571,17 +571,25 @@ const expState={...blank(),
  ],
  logs:[
   // 同一天同一行动拆成两条：完成项按「达标一次」算 1，记录行却有 2 条，用来区分口径
-  {id:'l1',taskId:'t1',title:'读一章',domain:'mind',value:15,unit:'分钟',goalId:'g1',xp:30,date:expDate,at:expDate+'T10:40:00.000Z',undone:false},
+  {id:'l1',taskId:'t1',title:'读一章',domain:'mind',value:15,unit:'分钟',goalId:'g1',xp:30,date:expDate,at:expDate+'T10:40:00.000Z',undone:false,photos:['exp-photo-xyz']},
   {id:'l2',taskId:'t1',title:'读一章',domain:'mind',value:15,unit:'分钟',goalId:'g1',xp:0,date:expDate,at:expDate+'T10:50:00.000Z',undone:false},
   {id:'l3',taskId:'t2',title:'跑步',domain:'health',value:10,unit:'分钟',goalId:'',xp:0,date:expDate,at:expDate+'T11:05:00.000Z',undone:false},
   {id:'l4',taskId:'t3',title:'昨天那条',domain:'health',value:10,unit:'分钟',goalId:'',xp:30,date:'2026-10-29',at:'2026-10-29T11:05:00.000Z',undone:false},
   {id:'l5',taskId:'t1',title:'撤销的那条',domain:'mind',value:15,unit:'分钟',goalId:'g1',xp:30,date:expDate,at:expDate+'T12:00:00.000Z',undone:true},
  ],
+ // 数组顺序刻意与时间相反（晚的排在前面）：删掉按 at 排序会立刻被行序断言抓到。
+ // j4 的摘要里带换行 + 假标题，验证换行被压平、不会打断 Markdown 结构。
+ // j5/j6 的 at 分别是空串与 null，验证不会凭空渲染出 1970 转出来的 08:00。
  journal:[
-  {id:'j1',date:expDate,at:'2026-10-30T10:40:00.000Z',text:'今天看完了第三章，卡在并发这一节',summary:'看完第三章，卡在并发',domain:'mind',tags:[],posture:'companion',runId:'r1',status:'pending'},
+  {id:'j4',date:expDate,at:'2026-10-30T12:10:00.000Z',text:'原话四',summary:'第一段\n## 假标题',tags:[],posture:'companion',runId:'r1',status:'kept'},
+  {id:'j5',date:expDate,at:'',text:'原话五',summary:'空时刻的记录',tags:[],posture:'companion',runId:'r1',status:'kept'},
   {id:'j2',date:expDate,at:'2026-10-30T11:05:00.000Z',text:'有点累，但比昨天好',summary:'有点累，但比昨天好',tags:[],posture:'companion',runId:'r1',status:'kept'},
+  {id:'j1',date:expDate,at:'2026-10-30T10:40:00.000Z',text:'今天看完了第三章，卡在并发这一节',summary:'看完第三章，卡在并发',domain:'mind',tags:[],posture:'companion',runId:'r1',status:'pending'},
   {id:'j3',date:'2026-10-29',at:'2026-10-29T09:00:00.000Z',text:'昨天的原话',summary:'昨天的记录摘要',domain:'career',tags:[],posture:'companion',runId:'r0',status:'kept'},
  ],
+ // 人生纪念与生日与照片：spec §6.11 明写只导当天 journal，这些都不得进入导出。
+ milestones:[{id:'ms',kind:'custom',title:'不该导出的纪念',date:'2020-01-01',note:'纪念备注',photos:[],at:'',updatedAt:'',archived:false}],
+ birthdays:[{id:'bd',year:2000,date:'2000-01-01',label:'不该导出的生日',calendar:'solar',adjustment:'',age:26,note:'',wish:'',photos:[],at:'',updatedAt:'',archived:false}],
  chat:[
   {id:'c1',date:expDate,at:'2026-10-30T10:35:00.000Z',role:'user',text:'今天蛮累的，想早点睡',posture:'companion'},
   {id:'c2',date:expDate,at:'2026-10-30T10:35:05.000Z',role:'assistant',text:'听起来你需要先休息一下',posture:'companion'},
@@ -605,6 +613,22 @@ assert.equal(expMd.includes('mood'),false,'V1 没有情绪数据，不得输出 
 assert.ok(expMd.includes('- 18:40 · 认知 · 看完第三章，卡在并发'),'记录行 = 时刻 · 领域 · 摘要');
 assert.ok(expMd.includes('- 19:05 · 状态 · 有点累，但比昨天好'),'没有 domain 的记录用「状态」');
 assert.equal(expMd.includes('今天看完了第三章'),false,'记录行用 summary，不用原话 text');
+// 排序：fixture 数组里晚的在前，导出必须是按 at 的正序（删掉 sort 会红）
+const i1840=expMd.indexOf('- 18:40 · 认知'),i1905=expMd.indexOf('- 19:05 · 状态'),i2010=expMd.indexOf('- 20:10 · 状态');
+assert.ok(i1840>=0&&i1905>=0&&i2010>=0,'三条正序记录都应出现');
+assert.ok(i1840<i1905&&i1905<i2010,'记录行必须按 at 正序，与 journal 数组顺序无关');
+// 换行压平：摘要里的 \n## 不得把导出切成新的 Markdown 标题
+assert.equal(expMd.includes('\n## 假标题'),false,'摘要里的换行不得打断 Markdown 结构');
+assert.ok(expMd.includes('- 20:10 · 状态 · 第一段 ## 假标题'),'换行应被压成同一行内的空格');
+// 空 at 不得渲染出假时刻（空串本身就会被 Date 判成 Invalid Date，真正的区分度在下一条 null 用例）
+assert.ok(expMd.includes('- 状态 · 空时刻的记录'),'空字符串 at 不产生时刻');
+assert.equal(expMd.includes('08:00'),false,'空 at 不得渲染出假时刻');
+// at:null 是唯一能区分「有守卫」与「没守卫」的输入：new Date(null) 是 1970，上海时间正好 08:00。
+// 单独成状态是为了不触发多元素排序（排序比较器对 null 无守卫，且真实存档里 at 恒为字符串）。
+const nullAtMd=journalMarkdown({...blank(),journal:[{id:'jn',date:expDate,at:null,text:'原话六',summary:'缺时刻的记录',tags:[],posture:'companion',runId:'r1',status:'kept'}]},expDate);
+assert.ok(nullAtMd.includes('- 状态 · 缺时刻的记录'),'null at 仍要输出记录行，只是没有时刻');
+assert.equal(nullAtMd.includes('08:00'),false,'null at 不得渲染成 1970 转出来的假时刻 08:00');
+assert.equal(nullAtMd.includes('undefined'),false,'null at 不得写成 undefined');
 // 对话摘录用 `> ` 引用，用户/助手分别标注「我 / 它」
 assert.ok(expMd.includes('> 我：今天蛮累的，想早点睡'));
 assert.ok(expMd.includes('> 它：听起来你需要先休息一下'));
@@ -614,6 +638,17 @@ assert.equal(expMd.includes('昨天的对话'),false,'不得导出其他日期�
 assert.equal(expMd.includes('2026-10-29'),false,'不得出现其他日期');
 assert.equal(expMd.includes(expMemory),false,'导出绝不含 memory 事实');
 assert.equal(expMd.includes('撤销的那条'),false,'撤销的记录不导出');
+// 差分断言：只改 memory 的内容/条数，导出必须逐字相同。
+// 这样任何形式的泄漏（原文、条数、kind、截断）都会红，不依赖文本唯一性。
+const expMoreMemory={...expState,memory:[...expState.memory,{id:'m2',text:'另一条记忆',kind:'preference',firstSeen:'2026-10-02T00:00:00.000Z',lastSeen:'2026-10-02T00:00:00.000Z',weight:3}]};
+assert.equal(journalMarkdown({...expState,memory:[]},expDate),expMd,'memory 为空不得改变导出');
+assert.equal(journalMarkdown(expMoreMemory,expDate),expMd,'memory 条数与内容变化不得改变导出');
+// 差分断言：人生纪念 / 生日 / 照片同理——去掉它们，导出必须逐字相同。
+const expNoExtras={...expState,milestones:[],birthdays:[],logs:expState.logs.map(l=>({...l,photos:undefined}))};
+assert.equal(journalMarkdown(expNoExtras,expDate),expMd,'人生纪念、生日、照片都不得进入导出');
+assert.equal(expMd.includes('exp-photo-xyz'),false,'照片 id 不得出现在导出里');
+assert.equal(expMd.includes('不该导出的纪念'),false,'人生纪念不得进入导出');
+assert.equal(expMd.includes('不该导出的生日'),false,'生日不得进入导出');
 // 今日口径：完成项 = completedActions（达标一次算 1），经验 = 当日未撤销 log 的 xp 之和
 const expDayLogs=expState.logs.filter(l=>!l.undone&&l.date===expDate);
 const expN=expCompleted(expState,{date:expDate}),expM=expDayLogs.reduce((n,l)=>n+l.xp,0);

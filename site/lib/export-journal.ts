@@ -2,7 +2,7 @@ import {domains,completedActions,type Game} from './game';
 
 // 导出里的时刻统一按上海时区、24 小时制显示。用 h23 避免出现 24:00。
 const clock=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
-function timeOf(at:string){const d=new Date(at);return Number.isNaN(d.getTime())?'':clock.format(d);}
+function timeOf(at:string){if(!at)return '';const d=new Date(at);return Number.isNaN(d.getTime())?'':clock.format(d);}
 // 摘要是单行文本，把换行和多余空白压平，避免破坏 Markdown 结构。
 const flat=(text:unknown)=>String(text??'').replace(/\s+/g,' ').trim();
 function heading(date:string){const [,month,day]=date.split('-');return month&&day?`${Number(month)}月${Number(day)}日`:date;}
