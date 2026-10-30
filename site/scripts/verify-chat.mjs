@@ -133,7 +133,8 @@ assert.ok(alertStart>-1&&alertEnd>alertStart,'必须保留页面级 AlertDialog 
 const alertBlock=memoryPage.slice(alertStart,alertEnd);
 assert.ok(alertBlock.includes("confirm?.type==='delete-memory-fact'"),'AlertDialog 必须有清空长期记忆的文案分支');
 assert.ok(alertBlock.includes('清空全部长期记忆？'),'清空确认标题必须说清会清空全部长期记忆');
-assert.ok(alertBlock.includes('这 40 类被它记住的事会全部删除，无法恢复'),'清空确认描述必须说明 40 类记忆全部删除且不可恢复');
+assert.ok(alertBlock.includes('这 ${s.memory.length} 条被它记住的事会全部删除，无法恢复'),'清空确认描述必须按实际条数说明全部删除且不可恢复');
+assert.ok(!/这 \d+ (类|条)/.test(alertBlock),'清空确认描述不得写死条数：条数随记忆变化，写死就是在不可恢复的操作前说假话');
 assert.ok(alertBlock.includes('你的对话与行动记录不受影响'),'清空确认描述必须说明对话与行动记录不受影响');
 assert.ok(alertBlock.includes('确认清空'),'清空确认按钮文案必须是「确认清空」');
 console.log('PASS 记忆管理页结构：单条删除派发带 id、清空走页面级 AlertDialog、不碰 delete-memory');
