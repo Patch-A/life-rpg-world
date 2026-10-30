@@ -13,7 +13,7 @@ export type Task = {id:string; title:string; domain:Domain; target:number; unit:
 export type ActionReview={id:string;goalId:string;summary:string;adjustment:string;sourceLogIds:string[];at:string;taskId?:string};
 export type Log = {id:string; taskId:string; title:string; domain:Domain; value:number; unit:string; goalId:string; xp:number; date:string; at:string; undone:boolean; note?:string; photos?:string[]; source?:'manual'|'timer'; direction?:'deposit'|'withdraw'; updatedAt?:string; history?:{value:number;date:string;note:string;at:string}[]};
 export type JournalEntry={id:string;date:string;at:string;text:string;summary:string;domain?:Domain;tags:string[];posture:'companion'|'counselor';runId:string;status:'pending'|'claimed'|'kept';logId?:string};
-export type ChatTurn={id:string;date:string;at:string;role:'user'|'assistant';text:string;posture?:'companion'|'counselor'};
+export type ChatTurn={id:string;date:string;at:string;role:'user'|'assistant';text:string;posture?:'companion'|'counselor';askSwitch?:boolean};
 export type MemoryFact={id:string;text:string;kind:'fact'|'preference'|'situation';firstSeen:string;lastSeen:string;weight:number};
 export type Monster={id:string;name:string;kind:'life'|'setback'|'emotion'|'jobless';hp:number;maxHp:number;createdAt:string};
 export type Game = {profile:null|{name:string; focus:Domain; createdAt:string;gender?:Gender;avatarId?:AvatarId;birth?:BirthInfo}; goals:Goal[]; tasks:Task[]; logs:Log[]; events:{id:string;choice:string;at:string}[]; milestones:LifeMilestone[]; claims:string[]; equipped:string; birthday:BirthdaySettings|null;birthdays:BirthdayRecord[];birthdayQueue:BirthdayOccurrence[];reviews:ActionReview[];agentAccepts:string[];journal:JournalEntry[];chat:ChatTurn[];memory:MemoryFact[];monsters:Monster[];settings:{celebrations:boolean;memoryPromptSeen:boolean}};
@@ -126,8 +126,8 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
  if(a.type==='chat-turn'){
   const rid=str(a.clientId,80);if(s.chat.some(t=>t.id===rid))return s;
   const userText=(typeof a.userText==='string'?a.userText.trim():'').slice(0,1000),reply=(typeof a.reply==='string'?a.reply.trim():'').slice(0,2000);if(!userText||!reply)throw Error('对话内容为空');
-  const posture=a.posture==='counselor'?'counselor':'companion';
-  s.chat.push({id:rid,date:today,at,role:'user',text:userText,posture},{id:rid+'-a',date:today,at,role:'assistant',text:reply,posture});if(s.chat.length>60)s.chat.splice(0,s.chat.length-60);
+  const posture=a.posture==='counselor'?'counselor':'companion',askSwitch=a.askSwitch===true;
+  s.chat.push({id:rid,date:today,at,role:'user',text:userText,posture},{id:rid+'-a',date:today,at,role:'assistant',text:reply,posture,askSwitch});if(s.chat.length>60)s.chat.splice(0,s.chat.length-60);
   const records=Array.isArray(a.records)?a.records:[];
   for(const raw of records){const r=raw as Record<string,unknown>;const summary=(typeof r.summary==='string'?r.summary.trim():'').slice(0,200),body=(typeof r.text==='string'?r.text.trim():'').slice(0,400);if(!summary||!body)continue;const tags=Array.isArray(r.tags)?[...new Set(r.tags.filter(t=>typeof t==='string'&&t.trim()).map(t=>(t as string).trim().slice(0,20)))].slice(0,20):[];s.journal.push({id:id(),date:today,at,text:body,summary,...(domains.some(d=>d.id===r.domain)?{domain:r.domain as Domain}:{}),tags,posture,runId:rid,status:'pending'});}
   if(s.journal.length>500)s.journal.splice(0,s.journal.length-500);

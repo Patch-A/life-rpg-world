@@ -277,20 +277,35 @@ assert.equal(globalThis.Date,RealDate,'伪造的 Date 必须复原');
 assert.equal(tzDay,'2026-10-31','day() 应使用上海时区');
 assert.equal(tzCtx.todayXp,30,'今日经验按上海当天算：UTC 昨天那条不算，撤销那条也不算');
 console.log('PASS 今日经验按上海时区判定，UTC 昨天与已撤销记录都不计入');
-// ---- 聊天路由：鉴权、同意校验、姿态打回、防编造、切换按钮过滤、独立额度、幂等与失败落库 ----
+// ---- 聊天路由：鉴权、同意校验、姿态打回、防编造、切换按钮过滤、双向额度隔离、18+、停用开关、幂等与失败落库 ----
+// ChatTurn.askSwitch 必须落入存档，路由才能判断「上一轮是不是真的问过」
+const askedTurn=reduceGame(start,{...turn,clientId:crypto.randomUUID(),askSwitch:true},new Date());
+assert.equal(askedTurn.chat.at(-1).askSwitch,true,'assistant 轮必须保存 askSwitch');
+assert.equal(reduceGame(start,{...turn,clientId:crypto.randomUUID()},new Date()).chat.at(-1).askSwitch,false,'未断言的旧轮次按 false 处理');
+console.log('PASS chat-turn 持久化 askSwitch，未问过的轮次视为 false');
 const oldNodeEnv=process.env.NODE_ENV;process.env.NODE_ENV='production';
 const {readdirSync}=await import('node:fs');
 const {DatabaseSync}=await import('node:sqlite');
 const chatSqlite=new DatabaseSync(':memory:');
 for(const f of readdirSync(new URL('../drizzle/',import.meta.url)).filter(f=>f.endsWith('.sql')).sort())chatSqlite.exec(source('drizzle/'+f));
-const chatDb={prepare(sql){let args=[];return{bind(...values){args=values;return this;},async first(){return chatSqlite.prepare(sql).get(...args)||null;},async run(){return{meta:{changes:Number(chatSqlite.prepare(sql).run(...args).changes)}};}};}};
+let failCleanup=false; // 让 30 天惰性清理抛错，验证它不会把已保存的回复降级
+const chatDb={prepare(sql){let args=[];return{bind(...values){args=values;return this;},async first(){return chatSqlite.prepare(sql).get(...args)||null;},async run(){if(failCleanup&&sql.includes('LIMIT 100'))throw new Error('cleanup failed');return{meta:{changes:Number(chatSqlite.prepare(sql).run(...args).changes)}};}};}};
 globalThis.__chatDB=chatDb;
 globalThis.__chatEnv={DEEPSEEK_API_KEY:'isolated-test',DEEPSEEK_MODEL:'test-model',AI_USER_DAILY_LIMIT:'10',AI_SITE_DAILY_LIMIT:'100'};
 const guardUrl=url(source('lib/request-guard.ts')),identityUrl=url(source('lib/identity.ts'));
-const chatRoute=()=>url(source('app/api/chat/route.ts').replace("import { env } from 'cloudflare:workers';",'const env=globalThis.__chatEnv;').replace("import { database } from '@/db';",'const database=()=>globalThis.__chatDB;').replaceAll("from '@/lib/game'",`from '${game}'`).replaceAll("from '@/lib/identity'",`from '${identityUrl}'`).replaceAll("from '@/lib/ai/deepseek'",`from '${provider}'`).replaceAll("from '@/lib/ai/chat-contract'",`from '${chatContract}'`).replaceAll("from '@/lib/chat-context'",`from '${chatContext}'`).replaceAll("from '@/lib/request-guard'",`from '${guardUrl}'`).replaceAll("from 'zod'",`from '${import.meta.resolve('zod')}'`));
+const chatRoute=()=>url(source('app/api/chat/route.ts').replace("import { env } from 'cloudflare:workers';",'const env=globalThis.__chatEnv;').replace("import { database } from '@/db';",'const database=()=>globalThis.__chatDB;').replaceAll("from '@/lib/game'",`from '${game}'`).replaceAll("from '@/lib/birthday'",`from '${birthday}'`).replaceAll("from '@/lib/identity'",`from '${identityUrl}'`).replaceAll("from '@/lib/ai/deepseek'",`from '${provider}'`).replaceAll("from '@/lib/ai/chat-contract'",`from '${chatContract}'`).replaceAll("from '@/lib/chat-context'",`from '${chatContext}'`).replaceAll("from '@/lib/request-guard'",`from '${guardUrl}'`).replaceAll("from 'zod'",`from '${import.meta.resolve('zod')}'`));
+const agentRouteUrl=()=>url(source('app/api/agent/route.ts').replace("import { env } from 'cloudflare:workers';",'const env=globalThis.__chatEnv;').replace("import { database } from '@/db';",'const database=()=>globalThis.__chatDB;').replaceAll("from '@/lib/game'",`from '${game}'`).replaceAll("from '@/lib/birthday'",`from '${birthday}'`).replaceAll("from '@/lib/identity'",`from '${identityUrl}'`).replaceAll("from '@/lib/agent-contract'",`from '${agentContract}'`).replaceAll("from '@/lib/ai/deepseek'",`from '${provider}'`).replaceAll("from '@/lib/request-guard'",`from '${guardUrl}'`).replaceAll("from 'zod'",`from '${import.meta.resolve('zod')}'`));
 const chatSaved=JSON.stringify(reduceGame(blank(),{type:'onboard',name:'测试',gender:'male',focus:'mind'},new Date()));
-chatSqlite.prepare('INSERT INTO saves(user_id,data,revision) VALUES(?,?,0)').run('alice',chatSaved);
-chatSqlite.prepare('INSERT INTO saves(user_id,data,revision) VALUES(?,?,0)').run('bob',chatSaved);
+const baseState=JSON.parse(chatSaved),atNow=new Date().toISOString(),todayNow=gameDay();
+const saveWith=turns=>JSON.stringify({...baseState,chat:turns});
+const insertSave=(user,data)=>chatSqlite.prepare('INSERT INTO saves(user_id,data,revision) VALUES(?,?,0)').run(user,data);
+insertSave('alice',chatSaved);insertSave('bob',chatSaved);insertSave('erin',chatSaved);
+// 上一轮真的是咨询师 → 本轮可以保持咨询师
+insertSave('carol',saveWith([{id:'carol-u',date:todayNow,at:atNow,role:'user',text:'最近有点累',posture:'companion'},{id:'carol-a',date:todayNow,at:atNow,role:'assistant',text:'先休息一下。',posture:'counselor'}]));
+// 上一轮陪伴者明确问了要不要切换 → switchConsent 才生效
+insertSave('dave',saveWith([{id:'dave-u',date:todayNow,at:atNow,role:'user',text:'我想被推着走',posture:'companion'},{id:'dave-a',date:todayNow,at:atNow,role:'assistant',text:'要不要换成更直接的方式？',posture:'companion',askSwitch:true}]));
+// 未成年人
+insertSave('minor',JSON.stringify({...baseState,profile:{...baseState.profile,birth:{date:'2015-01-01',calendar:'solar',year:2015,month:1,day:1,leapMonth:false}}}));
 const chatOldFetch=globalThis.fetch;let modelCalls=0,chatMode='counselor',servedFabricated=false,lastChatContext=null;
 const chatStub=async(u,options)=>{
  assert.equal(u,'https://api.deepseek.com/chat/completions');modelCalls++;
@@ -301,40 +316,65 @@ const chatStub=async(u,options)=>{
  if(content.records.some(r=>r.text==='我昨天还学了英语'))servedFabricated=true;
  return Response.json({choices:[{message:{content:JSON.stringify(content)},finish_reason:'stop'}]});
 };
+const agentStub=async()=>Response.json({choices:[{message:{content:JSON.stringify({summary:'先写三个要点。',adjustment:'补一个观点的资料。',sourceLogIds:[],candidates:[{title:'整理三个要点',steps:['写出三个观点'],completionCriteria:'有一份含三个观点的提纲',minutes:20,reason:'符合时间约束'}]})},finish_reason:'stop'}]});
 globalThis.fetch=chatStub;
-const chatReq=(user,body)=>new Request('https://test.invalid/api/chat',{method:'POST',headers:{...(user?{'oai-authenticated-user-id':user}:{}),'Content-Type':'application/json'},body:JSON.stringify(body)});
+const reqFor=(path,user,body)=>new Request('https://test.invalid'+path,{method:'POST',headers:{...(user?{'oai-authenticated-user-id':user}:{}),'Content-Type':'application/json'},body:JSON.stringify(body)});
+const chatReq=(user,body)=>reqFor('/api/chat',user,body);
 try{
  const chat=await import(chatRoute());
  const chatBody={requestId:crypto.randomUUID(),userText,prevPosture:'companion',switchConsent:false,consent:true,adult:true};
  assert.equal((await chat.POST(chatReq(null,chatBody))).status,401,'未登录 401');
  assert.equal((await chat.POST(chatReq('alice',{...chatBody,consent:undefined}))).status,400,'缺 consent 400');
  assert.equal((await chat.POST(chatReq('alice',{...chatBody,adult:undefined}))).status,400,'缺 adult 400');
+ assert.equal((await chat.POST(chatReq('alice',{...chatBody,userText:'   '}))).status,400,'纯空白不占额度也不调模型');
  assert.equal(modelCalls,0,'参数不合法时不应调用模型');
  delete globalThis.__chatEnv.DEEPSEEK_API_KEY;
  const noKey=await chat.POST(chatReq('alice',chatBody));
  assert.equal(noKey.status,503,'没配 key 返回 503');
  assert.equal((await noKey.json()).error,'还没有配置模型。把 API Key 填进环境变量后就能聊了，手动记录不受影响。');
- assert.equal(chatSqlite.prepare('SELECT COUNT(*) AS n FROM agent_runs').get().n,0,'没有 key 时不占额度');
  globalThis.__chatEnv.DEEPSEEK_API_KEY='isolated-test';
+ globalThis.__chatEnv.AI_ENABLED='false';
+ assert.equal((await chat.POST(chatReq('alice',chatBody))).status,503,'AI_ENABLED=false 时同样停用');
+ delete globalThis.__chatEnv.AI_ENABLED;
+ const beforeMinor=modelCalls;
+ assert.equal((await chat.POST(chatReq('minor',chatBody))).status,403,'未成年人在服务端硬拦截');
+ assert.equal(modelCalls,beforeMinor,'18+ 拦截前不调用模型');
+ assert.equal(chatSqlite.prepare('SELECT COUNT(*) AS n FROM agent_runs').get().n,0,'被拒绝的请求不占额度');
+ // 首轮：客户端谎报 prevPosture=counselor，但存档里没有上一轮 → 必须按陪伴者处理
  const firstId=crypto.randomUUID();
- let res=await chat.POST(chatReq('alice',{...chatBody,requestId:firstId}));
+ let res=await chat.POST(chatReq('alice',{...chatBody,requestId:firstId,prevPosture:'counselor'}));
  assert.equal(res.status,200);
  const firstRun=(await res.json()).run;
  assert.equal(firstRun.id,firstId);assert.equal(typeof firstRun.createdAt,'string');
- assert.equal(firstRun.reply.posture,'companion','没点头时模型给的咨询师必须打回陪伴者');
+ assert.equal(firstRun.reply.posture,'companion','prevPosture 由存档推算，客户端谎报无效');
  assert.equal(firstRun.reply.askSwitch,true,'打回后必须重新征求切换');
  assert.equal(servedFabricated,true,'桩确实返回了编造记录，下一条断言才有区分度');
  assert.deepEqual(firstRun.reply.records.map(r=>r.text),['今天看完了第三章'],'编造的记录必须被丢弃');
  assert.equal(firstRun.reply.quickReplies.some(q=>q.kind==='accept-switch'),true,'征求切换时保留同意按钮');
- assert.equal(lastChatContext.prevPosture,'companion','上下文带上上一轮姿态');
+ assert.equal(lastChatContext.prevPosture,'companion','上下文里的上一轮姿态来自存档');
  assert.equal(JSON.stringify(lastChatContext).includes(userText),true,'上下文带上用户原话');
  assert.equal(JSON.stringify(lastChatContext).includes('birth'),false,'上下文不带生日');
  assert.equal(chatSqlite.prepare('SELECT goal_id FROM agent_runs WHERE id=?').get(firstId).goal_id,'__chat__');
- res=await chat.POST(chatReq('alice',{...chatBody,requestId:crypto.randomUUID(),prevPosture:'counselor'}));
+ // 首轮直接发 switchConsent:true 也不能进咨询师：上一轮没人问过
+ res=await chat.POST(chatReq('alice',{...chatBody,requestId:crypto.randomUUID(),prevPosture:'counselor',switchConsent:true}));
+ const liar=(await res.json()).run;
+ assert.equal(liar.reply.posture,'companion','switchConsent 只在上一轮 askSwitch=true 时认');
+ assert.equal(liar.reply.askSwitch,true);
+ // 存档里上一轮是咨询师 → 保持咨询师，askSwitch=false，且不摆切换按钮
+ res=await chat.POST(chatReq('carol',{...chatBody,requestId:crypto.randomUUID()}));
  const steady=(await res.json()).run;
- assert.equal(steady.reply.posture,'counselor');assert.equal(steady.reply.askSwitch,false);
+ assert.equal(steady.reply.posture,'counselor','存档上一轮是咨询师时不必重新征求');
+ assert.equal(steady.reply.askSwitch,false);
  assert.equal(steady.reply.quickReplies.some(q=>q.kind==='accept-switch'),false,'askSwitch=false 时不得出现同意切换按钮');
  assert.equal(steady.reply.quickReplies.some(q=>q.kind==='say'),true);
+ // 上一轮问过、用户点头 → 真的进咨询师
+ res=await chat.POST(chatReq('dave',{...chatBody,requestId:crypto.randomUUID(),switchConsent:true}));
+ assert.equal((await res.json()).run.reply.posture,'counselor','上一轮 askSwitch=true 时同意有效');
+ // 上一轮问过、用户没点头 → 仍被打回
+ res=await chat.POST(chatReq('dave',{...chatBody,requestId:crypto.randomUUID(),switchConsent:false}));
+ const noNod=(await res.json()).run;
+ assert.equal(noNod.reply.posture,'companion');assert.equal(noNod.reply.askSwitch,true);
+ // 模型自己回陪伴者但主张升级 → askSwitch 被压回 false，切换按钮一并去掉
  chatMode='companion';
  res=await chat.POST(chatReq('alice',{...chatBody,requestId:crypto.randomUUID()}));
  const quiet=(await res.json()).run;
@@ -345,8 +385,8 @@ try{
  res=await chat.POST(chatReq('alice',{...chatBody,requestId:firstId}));
  assert.equal(res.status,200);assert.deepEqual((await res.json()).run,firstRun);assert.equal(modelCalls,callsBefore,'重复请求不再调用模型');
  assert.equal((await chat.POST(chatReq('bob',{...chatBody,requestId:firstId}))).status,409,'他人不能复用请求标识');
- const chatCount=()=>Number(chatSqlite.prepare("SELECT COUNT(*) AS n FROM agent_runs WHERE user_id='alice' AND date=? AND goal_id='__chat__'").get(gameDay()).n);
- assert.equal(chatCount(),3);
+ const chatCount=(user='alice')=>Number(chatSqlite.prepare("SELECT COUNT(*) AS n FROM agent_runs WHERE user_id=? AND date=? AND goal_id='__chat__'").get(user,gameDay()).n);
+ assert.equal(chatCount(),3,'alice 已有 3 条：首轮、谎报同意、陪伴者；幂等重放不新增');
  while(chatCount()<11){const loop=await chat.POST(chatReq('alice',{...chatBody,requestId:crypto.randomUUID()}));assert.equal(loop.status,200);}
  assert.equal(chatCount(),11,'聊天默认额度 50，不能沿用 /api/agent 的 10');
  globalThis.__chatEnv.AI_CHAT_USER_DAILY_LIMIT='11';
@@ -358,13 +398,44 @@ try{
  chatSqlite.prepare("INSERT INTO agent_runs(id,user_id,date,goal_id,status,result,created_at) VALUES(?,?,?,'__chat__','pending','',?)").run(pendingId,'alice',gameDay(),new Date().toISOString());
  assert.equal((await chat.POST(chatReq('alice',{...chatBody,requestId:crypto.randomUUID()}))).status,429,'已有回复生成中时不得再发');
  chatSqlite.prepare('DELETE FROM agent_runs WHERE id=?').run(pendingId);
+ // 反向隔离 1：行动助手的行不能吃掉聊天额度（注意此前 AI_USER_DAILY_LIMIT=10）
+ for(let i=0;i<10;i++)chatSqlite.prepare("INSERT INTO agent_runs(id,user_id,date,goal_id,status,result,created_at) VALUES(?,?,?,'g-agent','complete','{}',?)").run(crypto.randomUUID(),'erin',gameDay(),new Date().toISOString());
+ assert.equal(chatCount('erin'),0);
+ assert.equal((await chat.POST(chatReq('erin',{...chatBody,requestId:crypto.randomUUID()}))).status,200,'agent 行不得占用聊天额度');
+ // 幂等查询只认本路由自己的聊天行：撞上 agent 行或 30 天前的旧行都必须重新生成，而不是把别人的结果当 ChatRun 返回
+ const clashId=crypto.randomUUID();
+ chatSqlite.prepare("INSERT INTO agent_runs(id,user_id,date,goal_id,status,result,created_at) VALUES(?,?,?,'g-agent','complete',?,?)").run(clashId,'erin',gameDay(),JSON.stringify({id:clashId,mode:'plan',result:{}}),new Date().toISOString());
+ const clash=await chat.POST(chatReq('erin',{...chatBody,requestId:clashId}));
+ assert.equal(clash.status,409,'撞上行动助手草案的 id 必须拒绝，不能当聊天结果回放');
+ assert.equal(chatSqlite.prepare('SELECT goal_id FROM agent_runs WHERE id=?').get(clashId).goal_id,'g-agent','拒绝时不得改动对方的行');
+ const staleId=crypto.randomUUID();
+ chatSqlite.prepare("INSERT INTO agent_runs(id,user_id,date,goal_id,status,result,created_at) VALUES(?,?,?,'__chat__','complete',?,?)").run(staleId,'erin',gameDay(),JSON.stringify({id:staleId,reply:{reply:'旧的'}}),new Date(Date.now()-40*86400000).toISOString());
+ const stale=await chat.POST(chatReq('erin',{...chatBody,requestId:staleId}));
+ assert.equal(stale.status,200);
+ assert.notEqual((await stale.json()).run.reply.reply,'旧的','超过 30 天的旧行不得回放');
+ // 反向隔离 2：聊天行不能吃掉行动助手额度（alice 已有 11 条聊天行）
+ globalThis.fetch=agentStub;
+ const agent=await import(agentRouteUrl());
+ const agentBody={requestId:crypto.randomUUID(),mode:'plan',goalId:'',newGoal:{title:'完成文章',domain:'career',successCriteria:'完成完整草稿',target:120},minutes:20,obstacle:'还没有提纲',consent:true,adult:true};
+ const agentRes=await agent.POST(reqFor('/api/agent','alice',agentBody));
+ assert.equal(agentRes.status,200,'聊天行不得占用 /api/agent 的额度');
+ globalThis.fetch=chatStub;
+ // 模型失败：预留行置 failed
  const failId=crypto.randomUUID();
  globalThis.fetch=async()=>new Response('{}',{status:500});
  res=await chat.POST(chatReq('alice',{...chatBody,requestId:failId}));
  assert.equal(res.status,503);
  assert.equal(chatSqlite.prepare('SELECT status FROM agent_runs WHERE id=?').get(failId).status,'failed','模型失败时必须把预留行置 failed');
  globalThis.fetch=chatStub;
+ // 清理是尽力而为：30 天惰性删除抛错也不能把已经保存好的回复翻成 failed
+ const cleanupId=crypto.randomUUID();
+ failCleanup=true;
+ res=await chat.POST(chatReq('alice',{...chatBody,requestId:cleanupId}));
+ failCleanup=false;
+ assert.equal(res.status,200,'清理失败不得让客户端收 503');
+ assert.equal(chatSqlite.prepare('SELECT status FROM agent_runs WHERE id=?').get(cleanupId).status,'complete','已完成的回复不得被清理失败降级');
  assert.equal(chatSqlite.prepare("SELECT data FROM saves WHERE user_id='alice'").get().data,chatSaved,'聊天路由不写存档');
- assert.equal(chatSqlite.prepare("SELECT COUNT(*) AS n FROM agent_runs WHERE goal_id<>'__chat__'").get().n,0);
- console.log('PASS 聊天路由：鉴权、同意校验、姿态打回、防编造、切换按钮过滤、独立额度、幂等与失败落库');
+ assert.equal(chatSqlite.prepare("SELECT COUNT(*) AS n FROM agent_runs WHERE user_id='alice' AND goal_id<>'__chat__'").get().n,1,'alice 的非聊天行只有上面那次 /api/agent 调用');
+ assert.equal(chatSqlite.prepare('SELECT id FROM agent_runs WHERE user_id=? AND goal_id<>\'__chat__\'').get('alice').id,agentBody.requestId,'聊天路由没有写入任何 agent 行');
+ console.log('PASS 聊天路由：鉴权、同意校验、姿态打回、防编造、切换按钮过滤、双向额度隔离、18+、停用开关、幂等与失败落库');
 }finally{globalThis.fetch=chatOldFetch;process.env.NODE_ENV=oldNodeEnv;delete globalThis.__chatDB;delete globalThis.__chatEnv;chatSqlite.close();}
