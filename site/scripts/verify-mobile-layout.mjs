@@ -144,12 +144,24 @@ const sceneMobileCss=mediaBlocks(source('components/assistant-scene.css'),600);
 const lineFs=readPx(sceneMobileCss,'.assistant-scene__bubble','font-size','记录官的话');
 assert.ok(lineFs>=13.5,`手机上记录官的话必须 ≥13.5px，实际 ${lineFs}px`);
 // globals 里的标签类：手机断点里必须抬到 12.5px 以上。
-for(const sel of ['.chapter-tag','.level-pill','.xp-strip','.task-meta .reward','.bag-grid small','.save-foot','.private-label']){
+// 成长页这几条是中文正文（「认知领域」「已点亮」「每段旅程都始于第一步」「0/5 次」），
+// 不是装饰行；.eyebrow 在别的页面是英文装饰，但成长页往里放中文，所以一并卡下限。
+for(const sel of ['.chapter-tag','.level-pill','.xp-strip','.task-meta .reward','.bag-grid small','.save-foot','.private-label',
+  '.eyebrow','.region-progress','.node-state','.journey-node small','.skill-row small']){
   const fs=readPx(mobile,sel,'font-size',`手机标签 ${sel}`);
   assert.ok(fs>=12.5,`手机上 ${sel} 必须 ≥12.5px，实际 ${fs}px`);
 }
 // 桌面字号不得被顺手改掉：抬字号只发生在手机断点里。
 const deskMeta=nthBlock(chatCss,'.chat-room__record-meta{');
 assert.ok(deskMeta.includes('11.5px'),'桌面记录元信息字号应保持 11.5px：手机字号只在 600px 断点里抬');
+
+// 触控目标下限：手机上小到点不准的控件，和「点了没反应」是同一件事。
+// 弹窗关闭键原来只有 16×26（实测），在右上角单手最难够到的地方；
+// 开关视觉尺寸 32×18，但必须有一个 44px 高的透明命中区，否则只有轨道本身可点。
+const dlgTsx=source('components/ui/dialog.tsx');
+assert.ok(/right-2 grid size-11 place-items-center/.test(dlgTsx),'弹窗关闭键必须有 44×44 的触控区，不能只有图标本身大');
+const switchHit=[...mobile.matchAll(/\[data-slot=switch\]:after\{([^}]*)\}/g)].map(m=>m[1])[0];
+assert.ok(switchHit,'手机断点必须给开关补一条 44px 高的命中区规则');
+assert.ok(/height:\s*44px/.test(switchHit),`开关命中区必须 44px 高，实际「${switchHit}」`);
 
 console.log('PASS 手机排版的样式与结构约束成立');
