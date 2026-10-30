@@ -106,6 +106,31 @@
 .chat-room__quick-reply:hover:not(:disabled){border-color:#c6a6ed;background:#322a4c}
 .chat-room__quick-reply:disabled{opacity:.55;cursor:not-allowed}
 
+.chat-room__consent{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding:10px 12px;
+  border:1px solid #a98ec53d;
+  border-radius:14px;
+  background:#1b192b;
+  font-size:12.5px;
+  line-height:1.55;
+}
+.chat-room__consent-item{
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
+  color:#d9cdf2;
+}
+.chat-room__consent-item input{
+  flex:none;
+  width:18px;
+  height:18px;
+  margin:1px 0 0;
+  accent-color:#8f6dd8;
+}
+.chat-room__hint{margin:0;color:#b7a9d9;font-size:11.5px}
 .chat-room__compose{
   display:flex;
   gap:8px;

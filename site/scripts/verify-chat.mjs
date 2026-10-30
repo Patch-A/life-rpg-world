@@ -702,3 +702,46 @@ assert.equal(c.journal[0].status,'claimed','失败的 keep 不得改动原状态
 const reclaimed=reduceGame(kept,{type:'claim-record',id:kept.journal[0].id},new Date());
 assert.equal(reclaimed.journal[0].status,'claimed','kept 记录可以再认领');
 console.log('PASS keep-record 只留记录、不动经验、已认领不可降级');
+// unclaim-record（撤销认领）：记录退回 kept 并保留，日志撤销、行动归档、经验回收
+const claimBase=reduceGame(after,{type:'claim-record',id:after.journal[0].id},new Date());
+const claimedLogId=claimBase.journal[0].logId,claimedTaskId=claimBase.tasks.at(-1).id;
+const unclaimed=reduceGame(claimBase,{type:'unclaim-record',id:after.journal[0].id},new Date());
+assert.equal(unclaimed.journal.length,claimBase.journal.length,'撤销认领不得删除记录');
+assert.equal(unclaimed.journal[0].status,'kept','撤销认领后记录退回 kept');
+assert.equal(unclaimed.journal[0].logId,undefined,'撤销认领必须清掉旧 log 引用');
+assert.equal(unclaimed.logs.find(l=>l.id===claimedLogId).undone,true,'对应 log 应撤销');
+assert.equal(xp(unclaimed),xp(after),'撤销认领应回收经验');
+assert.equal(unclaimed.tasks.find(t=>t.id===claimedTaskId).archived,true,'没有未撤销记录的自动行动应归档');
+assert.ok(journalMarkdown(unclaimed,after.journal[0].date).includes('认知 · 看完第三章'),'撤销认领后记录仍出现在当日导出里');
+// 撤销认领后可以再认领，且指向新的 log
+const reclaim=reduceGame(unclaimed,{type:'claim-record',id:after.journal[0].id},new Date());
+assert.equal(reclaim.journal[0].status,'claimed');
+assert.ok(reclaim.journal[0].logId&&reclaim.journal[0].logId!==claimedLogId,'再认领必须生成新 log');
+assert.equal(reclaim.logs.find(l=>l.id===reclaim.journal[0].logId).undone,false);
+// 只有 claimed 能撤销认领
+assert.throws(()=>reduceGame(after,{type:'unclaim-record',id:after.journal[0].id},new Date()),/只有已认领/, 'pending 不能撤销认领');
+assert.throws(()=>reduceGame(kept,{type:'unclaim-record',id:kept.journal[0].id},new Date()),/只有已认领/,'kept 不能撤销认领');
+console.log('PASS 撤销认领保留记录、回收经验、可再次认领');
+// claim-record 只认白名单状态：脏 status（undefined / archived）不得认领发经验
+const noStatus={...after,journal:[{...after.journal[0],status:undefined}]};
+assert.throws(()=>reduceGame(noStatus,{type:'claim-record',id:after.journal[0].id},new Date()),/记录不存在/,'status undefined 不得认领');
+const archivedStatus={...after,journal:[{...after.journal[0],status:'archived'}]};
+assert.throws(()=>reduceGame(archivedStatus,{type:'claim-record',id:after.journal[0].id},new Date()),/记录不存在/,'未知 status 不得认领');
+console.log('PASS claim-record 只认 pending/kept 白名单');
+// chatConsent：旧存档默认 false，写入后可持久，其他 settings 改动不得重置它
+assert.equal(normalizeGame(legacy).settings.chatConsent,false,'旧存档应补成未同意');
+assert.equal(blank().settings.chatConsent,false);
+const consented=reduceGame(after,{type:'settings',chatConsent:true},new Date());
+assert.equal(consented.settings.chatConsent,true,'应能写入聊天同意');
+assert.equal(reduceGame(consented,{type:'settings',celebrations:false},new Date()).settings.chatConsent,true,'改其他设置不得清掉同意');
+assert.equal(reduceGame(consented,{type:'settings'},new Date()).settings.chatConsent,true,'空 settings action 不得清掉同意');
+console.log('PASS chatConsent 默认关闭、可写入且不被其他设置重置');
+// 结构冒烟：chat-room.tsx 没有渲染测试宿主，只能守住这几处一旦退化就会烧额度/丢记录的结构。
+const chatRoom=source('components/chat-room.tsx');
+assert.ok(/const retry=unsaved\.current/.test(chatRoom),'未落库的那一轮必须被记住以便重试');
+assert.ok(chatRoom.indexOf("fetch('/api/chat'")>chatRoom.indexOf('if(retry)'),'重试必须在发请求之前短路，不能再烧一次额度');
+assert.ok(chatRoom.indexOf('onLine(')>chatRoom.indexOf('}catch(err)'),'onLine 必须在 try 之外：落库成功后回调抛错不得回填原文');
+assert.ok(chatRoom.includes('state.settings.chatConsent')&&chatRoom.includes('chatConsent:true'),'同意门槛必须读存档并写回存档');
+assert.ok(chatRoom.includes("type:'unclaim-record'")&&chatRoom.includes("type:'keep-record'"),'记录卡必须提供保留与撤销认领');
+assert.ok(chatRoom.indexOf("type:'unclaim-record'")!==-1&&chatRoom.indexOf("type:'delete-journal',id:entry.id")>chatRoom.indexOf("type:'unclaim-record'"),'撤销认领与删除必须是两个不同的动作');
+console.log('PASS 对话区结构冒烟：重试复用、通知时序、同意门槛、撤销与删除分离');

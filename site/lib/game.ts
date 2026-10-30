@@ -16,12 +16,12 @@ export type JournalEntry={id:string;date:string;at:string;text:string;summary:st
 export type ChatTurn={id:string;date:string;at:string;role:'user'|'assistant';text:string;posture?:'companion'|'counselor';askSwitch?:boolean};
 export type MemoryFact={id:string;text:string;kind:'fact'|'preference'|'situation';firstSeen:string;lastSeen:string;weight:number};
 export type Monster={id:string;name:string;kind:'life'|'setback'|'emotion'|'jobless';hp:number;maxHp:number;createdAt:string};
-export type Game = {profile:null|{name:string; focus:Domain; createdAt:string;gender?:Gender;avatarId?:AvatarId;birth?:BirthInfo}; goals:Goal[]; tasks:Task[]; logs:Log[]; events:{id:string;choice:string;at:string}[]; milestones:LifeMilestone[]; claims:string[]; equipped:string; birthday:BirthdaySettings|null;birthdays:BirthdayRecord[];birthdayQueue:BirthdayOccurrence[];reviews:ActionReview[];agentAccepts:string[];journal:JournalEntry[];chat:ChatTurn[];memory:MemoryFact[];monsters:Monster[];settings:{celebrations:boolean;memoryPromptSeen:boolean}};
+export type Game = {profile:null|{name:string; focus:Domain; createdAt:string;gender?:Gender;avatarId?:AvatarId;birth?:BirthInfo}; goals:Goal[]; tasks:Task[]; logs:Log[]; events:{id:string;choice:string;at:string}[]; milestones:LifeMilestone[]; claims:string[]; equipped:string; birthday:BirthdaySettings|null;birthdays:BirthdayRecord[];birthdayQueue:BirthdayOccurrence[];reviews:ActionReview[];agentAccepts:string[];journal:JournalEntry[];chat:ChatTurn[];memory:MemoryFact[];monsters:Monster[];settings:{celebrations:boolean;memoryPromptSeen:boolean;chatConsent?:boolean}};
 export type LifeMilestone={id:string;kind:string;title:string;date:string;note:string;photos:string[];at:string;updatedAt:string;archived:boolean;datePrecision?:'day'|'year'|'unknown';history?:{date:string;datePrecision?:'day'|'year'|'unknown';note:string;at:string;title?:string}[]};
 export const milestoneKinds=[{id:'adult',title:'18 岁成人礼',category:'人生转折',reward:'成年礼装',description:'把属于你的成人礼，珍藏在这里。'},{id:'first-job',title:'第一份工作',category:'人生转折',reward:'初入职场徽章',description:'记录第一次走进职场的日子。'},{id:'first-salary',title:'第一次领工资',category:'值得纪念',reward:'第一份收获徽章',description:'这一份回报，属于认真迈步的你。'},{id:'graduation',title:'毕业',category:'人生转折',reward:'新的起点徽章',description:'告别一个阶段，也开启一段新旅程。'},{id:'custom',title:'我的重要时刻',category:'自定义纪念',reward:'人生纪念',description:'重要与否，由你自己定义。'}] as const;
 export const outfits=[{id:'explorer',name:'启程探索装',image:'/explorer.png',requirement:''},{id:'suit',name:'星光西装',image:'/outfit-suit.png',requirement:'adult'},{id:'dress',name:'月光礼裙',image:'/outfit-dress.png',requirement:'adult'}];
 export function normalizeGame(value:Game,today=day()):Game {
- const s={...blank(),...value,reviews:value.reviews||[],agentAccepts:value.agentAccepts||[],journal:value.journal||[],chat:value.chat||[],memory:value.memory||[],monsters:value.monsters||[],milestones:value.milestones||[],claims:value.claims||[],equipped:value.equipped||'explorer',birthday:value.birthday||null,birthdays:value.birthdays||[],birthdayQueue:value.birthdayQueue||[],settings:{celebrations:value.settings?.celebrations??true,memoryPromptSeen:value.settings?.memoryPromptSeen??false}};
+ const s={...blank(),...value,reviews:value.reviews||[],agentAccepts:value.agentAccepts||[],journal:value.journal||[],chat:value.chat||[],memory:value.memory||[],monsters:value.monsters||[],milestones:value.milestones||[],claims:value.claims||[],equipped:value.equipped||'explorer',birthday:value.birthday||null,birthdays:value.birthdays||[],birthdayQueue:value.birthdayQueue||[],settings:{celebrations:value.settings?.celebrations??true,memoryPromptSeen:value.settings?.memoryPromptSeen??false,chatConsent:value.settings?.chatConsent??false}};
  if(s.profile?.gender)s.profile={...s.profile,avatarId:s.profile.gender};
  s.equipped=resolveEquipped(characterGender(s.profile),s.equipped,s.claims);
  return syncBirthdayQueue(s,today);
@@ -51,7 +51,7 @@ export function completedActions(s:Game,filter:{date?:string;domain?:Domain}={})
 export function availableXP(s:Game,domain:Domain,today=day()){return Math.max(0,30-s.logs.filter(l=>!l.undone&&l.domain===domain&&l.date===today).reduce((n,l)=>n+l.xp,0));}
 export function adultEligible(s:Game,today=day()){return !!s.profile?.birth&&adultDate(s.profile.birth)<=today;}
 export type Action = {type:string; [key:string]:unknown};
-export const blank = ():Game=>({profile:null,goals:[],tasks:[],logs:[],events:[],milestones:[],claims:[],equipped:'explorer',birthday:null,birthdays:[],birthdayQueue:[],reviews:[],agentAccepts:[],journal:[],chat:[],memory:[],monsters:[],settings:{celebrations:true,memoryPromptSeen:false}});
+export const blank = ():Game=>({profile:null,goals:[],tasks:[],logs:[],events:[],milestones:[],claims:[],equipped:'explorer',birthday:null,birthdays:[],birthdayQueue:[],reviews:[],agentAccepts:[],journal:[],chat:[],memory:[],monsters:[],settings:{celebrations:true,memoryPromptSeen:false,chatConsent:false}});
 const dayFormatter=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Shanghai',year:'numeric',month:'2-digit',day:'2-digit'});
 export function day(date=new Date()){return dayFormatter.format(date);}
 export function xp(s:Game){return s.logs.filter(x=>!x.undone).reduce((v,x)=>v+x.xp,0);}
@@ -93,7 +93,7 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
  if(!s.profile)throw new Error('请先创建角色');
  if(a.type==='birth-profile'){const birth=validateBirth(a.birth as Record<string,unknown>||{},today);s.profile.birth=birth;s.settings.memoryPromptSeen=true;s.birthday=celebrationSettings(birth,a.celebrationCalendar==='lunar'?'lunar':'solar',s.birthday||{});return syncBirthdayQueue(s,today);}
  if(a.type==='profile'){const name=str(a.name,20),gender=validGender(a.gender??s.profile.gender),avatarId=validAvatar(a.avatarId,gender);Object.assign(s.profile,{name,gender,avatarId});s.equipped=resolveEquipped(gender,s.equipped,s.claims);return s;}
- if(a.type==='settings'){if(a.celebrations!==undefined)s.settings.celebrations=!!a.celebrations;if(a.memoryPromptSeen!==undefined)s.settings.memoryPromptSeen=!!a.memoryPromptSeen;return s;}
+ if(a.type==='settings'){if(a.celebrations!==undefined)s.settings.celebrations=!!a.celebrations;if(a.memoryPromptSeen!==undefined)s.settings.memoryPromptSeen=!!a.memoryPromptSeen;if(a.chatConsent!==undefined)s.settings.chatConsent=!!a.chatConsent;return s;}
  if(a.type==='goal'){
   if(!a.id&&s.goals.length>=100)throw new Error('最多创建100个目标');
   const existing=s.goals.find(g=>g.id===a.id);if(a.id&&!existing)throw new Error('目标不存在');
@@ -137,8 +137,8 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
   return s;
  }
  if(a.type==='claim-record'){
-  // pending 可直接认领；kept 也允许改主意后再认领（已 claimed 的不可重复认领）。
-  const entry=s.journal.find(j=>j.id===a.id&&j.status!=='claimed');if(!entry)throw new Error('记录不存在或已经认领');
+  // 只认白名单状态：pending 可直接认领，kept 也允许改主意后再认领（已 claimed 的不可重复认领）。
+  const entry=s.journal.find(j=>j.id===a.id&&(j.status==='pending'||j.status==='kept'));if(!entry)throw new Error('记录不存在或已经认领');
   if(s.tasks.filter(t=>!t.archived).length>=100)throw new Error('请先归档不再需要的行动');
   if(s.logs.length>=10000)throw new Error('记录已达容量上限，请先导出存档');
   const taskDomain=entry.domain??'mind',taskId=id(),logId=id(),title=entry.summary.slice(0,80);
@@ -148,6 +148,14 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
  }
  // 「不算」只改状态：不动经验、logs 与 tasks，只处理仍待认领的记录。
  if(a.type==='keep-record'){const entry=s.journal.find(j=>j.id===a.id&&j.status==='pending');if(!entry)throw new Error('记录不存在或已经认领');entry.status='kept';return s;}
+ // 撤销认领：只回收行动与经验，记录本身退回 kept 并留在存档/导出里。
+ if(a.type==='unclaim-record'){
+  const entry=s.journal.find(j=>j.id===a.id&&j.status==='claimed');if(!entry)throw new Error('只有已认领的记录可以撤销认领');
+  const l=entry.logId?s.logs.find(l=>l.id===entry.logId):undefined;
+  if(l){l.undone=true;l.updatedAt=at;const t=s.tasks.find(t=>t.id===l.taskId);if(t&&!s.logs.some(x=>x.taskId===t.id&&!x.undone))t.archived=true;}
+  // 必须清掉旧引用，否则下次认领会指向一条已撤销的 log。
+  entry.status='kept';delete entry.logId;recalculate(s);return s;
+ }
  if(a.type==='delete-journal'){
   const entry=s.journal.find(j=>j.id===a.id);if(!entry)throw new Error('记录不存在');
   s.journal=s.journal.filter(j=>j.id!==entry.id);

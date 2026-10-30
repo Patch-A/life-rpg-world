@@ -11,10 +11,11 @@ import './chat-room.css';
 
 type Posture='companion'|'counselor';
 type Act=(action:Action)=>Promise<boolean>;
+type Run={id:string;reply:ChatResult;createdAt:string};
 
 // 与导出保持同一时刻口径：上海时区、24 小时制；at 异常时不显示时刻而不是显示假时刻。
 const clock=new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Shanghai',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});
-function timeOf(at:string){if(typeof at!=='string'||!at)return '';const d=new Date(at);return Number.isNaN(d.getTime())?'':clock.format(d);}
+function timeOf(at:string){if(typeof at!=='string'||!at)return '';const d=new Date(at);if(Number.isNaN(d.getTime()))return '';return clock.format(d);}
 // 记录的 domain 缺失时与 claim-record 的兜底一致，按认知展示。
 function domainMeta(id:string|undefined){return domains.find(d=>d.id===id)??domains[0];}
 
@@ -33,14 +34,11 @@ function RecordCard({entry,state,busy,sending,act}:{entry:JournalEntry;state:Gam
     </div>
     <p className="chat-room__record-summary">{entry.summary}</p>
     <div className="chat-room__actions">
-      {entry.status==='pending'&&<Fragment>
-        <button type="button" className="chat-room__claim" disabled={locked} onClick={()=>act({type:'claim-record',id:entry.id})}>{claimLabel}</button>
-        <button type="button" className="chat-room__keep" disabled={locked} onClick={()=>act({type:'keep-record',id:entry.id})}>就记着</button>
-      </Fragment>}
-      {entry.status==='kept'&&<button type="button" className="chat-room__claim" disabled={locked} onClick={()=>act({type:'claim-record',id:entry.id})}>{claimLabel}</button>}
-      {entry.status==='claimed'
-        ?<button type="button" className="chat-room__undo" disabled={locked} onClick={()=>act({type:'delete-journal',id:entry.id})}><Undo2 size={14} aria-hidden="true"/>撤销</button>
-        :<button type="button" className="chat-room__delete" disabled={locked} aria-label={`删除这条记录：${entry.summary}`} onClick={()=>act({type:'delete-journal',id:entry.id})}><Trash2 size={14} aria-hidden="true"/>删除</button>}
+      {(entry.status==='pending'||entry.status==='kept')&&<button type="button" className="chat-room__claim" disabled={locked} onClick={()=>act({type:'claim-record',id:entry.id})}>{claimLabel}</button>}
+      {entry.status==='pending'&&<button type="button" className="chat-room__keep" disabled={locked} onClick={()=>act({type:'keep-record',id:entry.id})}>就记着</button>}
+      {/* 撤销认领只回收行动与经验；记录本身留在今天的记录和导出里。 */}
+      {entry.status==='claimed'&&<button type="button" className="chat-room__undo" disabled={locked} onClick={()=>act({type:'unclaim-record',id:entry.id})}><Undo2 size={14} aria-hidden="true"/>撤销认领</button>}
+      <button type="button" className="chat-room__delete" disabled={locked} aria-label={`删除这条记录：${entry.summary}`} onClick={()=>act({type:'delete-journal',id:entry.id})}><Trash2 size={14} aria-hidden="true"/>删除</button>
     </div>
   </article>;
 }
@@ -60,13 +58,21 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
   const [sending,setSending]=useState(false);
   const [quickReplies,setQuickReplies]=useState<ChatResult['quickReplies']>([]);
   const [saveWarning,setSaveWarning]=useState(false);
+  const [adultOk,setAdultOk]=useState(false);
+  const [consentOk,setConsentOk]=useState(false);
+  const [consentGranted,setConsentGranted]=useState(false);
   const flight=useRef(false);
   // 切咨询师的同意只对紧跟的那一次请求有效，发送时立刻清零。
   const consentOnce=useRef(false);
+  // 回复已经生成、但还没落库的那一轮：重发时复用它，既不重复请求（白烧额度），也不丢原文。
+  const unsaved=useRef<{runId:string;userText:string;reply:ChatResult}|null>(null);
   const inputRef=useRef<HTMLInputElement|null>(null);
   const streamRef=useRef<HTMLDivElement|null>(null);
   const today=day();
   const todayRecords=[...state.journal].filter(e=>e.date===today).sort((a,b)=>a.at.localeCompare(b.at));
+  // 同意只问一次：存档里记过、或这次会话里已经同意过，就不再显示。
+  const consentDone=consentGranted||state.settings.chatConsent===true;
+  const canSend=consentDone||(adultOk&&consentOk);
 
   useEffect(()=>{const el=streamRef.current;if(el)el.scrollTop=el.scrollHeight;},[state.chat.length]);
 
@@ -74,15 +80,29 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
     e.preventDefault();
     const text=draft.trim();
     if(flight.current||busy||!text)return;
+    // 换了另一句话就不是待重试的那一轮，旧结果作废。
+    if(unsaved.current&&unsaved.current.userText!==text)unsaved.current=null;
+    const retry=unsaved.current;
+    // 重试说明同意早就给过了，不再被勾选框拦住。
+    if(!retry&&!canSend)return;
     flight.current=true;
-    const switchConsent=consentOnce.current;consentOnce.current=false;
-    const lastAssistant=[...state.chat].reverse().find(t=>t.role==='assistant');
-    const prevPosture:Posture=lastAssistant?.posture==='counselor'?'counselor':'companion';
+    const switchConsent=retry?false:consentOnce.current;
+    consentOnce.current=false;
     setSending(true);setSaveWarning(false);setDraft('');setQuickReplies([]);
+    let done:Run|null=null;
     try{
-      const response=await fetch('/api/chat',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(60000),body:JSON.stringify({requestId:crypto.randomUUID(),userText:text,prevPosture,switchConsent,consent:true,adult:true})});
-      const {run}=await readJSON<{run:{id:string;reply:ChatResult;createdAt:string}}>(response);
-      if(!run||typeof run.id!=='string'||typeof run.reply?.reply!=='string')throw new Error('返回的数据不完整，本次对话未保存，请重试。');
+      let run:Run;
+      if(retry){
+        // 上一轮只是没落库：同一个 runId 重放 chat-turn，reducer 幂等，且不再消耗聊天额度。
+        run={id:retry.runId,reply:retry.reply,createdAt:new Date().toISOString()};
+      }else{
+        const lastAssistant=[...state.chat].reverse().find(t=>t.role==='assistant');
+        const prevPosture:Posture=lastAssistant?.posture==='counselor'?'counselor':'companion';
+        const response=await fetch('/api/chat',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(60000),body:JSON.stringify({requestId:crypto.randomUUID(),userText:text,prevPosture,switchConsent,consent:true,adult:true})});
+        const {run:next}=await readJSON<{run:Run}>(response);
+        if(!next||typeof next.id!=='string'||typeof next.reply?.reply!=='string')throw new Error('返回的数据不完整，本次对话未保存，请重试。');
+        run=next;
+      }
       // 先落库、再更新界面：刷新后不会出现「界面上有、存档里没有」。
       // run.id 就是 requestId，chat-turn 用它做 clientId，重复提交天然幂等。
       let saved=false;
@@ -90,20 +110,31 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
         saved=await act({type:'chat-turn',clientId:run.id,userText:text,reply:run.reply.reply,posture:run.reply.posture,askSwitch:run.reply.askSwitch,records:run.reply.records,memoryCandidates:run.reply.memoryCandidates});
       }catch{saved=false;}
       if(!saved){
-        // 对话已经在服务端发生过，不把原文塞回输入框；act 自己已 toast 过，这里只在记录区补一句。
-        setSaveWarning(true);
+        // 冲突/登录失效时 act 根本没发请求就返回 false：原文必须回到输入框，回复留着下次重试。
+        // act 自己已经 toast 过，这里只在记录区补一句说明。
+        unsaved.current={runId:run.id,userText:text,reply:run.reply};
+        setDraft(text);setSaveWarning(true);
         return;
       }
-      setQuickReplies(run.reply.quickReplies);
-      onLine(run.reply.reply);
-      onPosture(run.reply.posture);
+      unsaved.current=null;done=run;
     }catch(err){
       // 请求没成功：原文放回输入框，用户可以直接再发一次。
       setDraft(text);
       toast.error(requestError(err));
+      return;
     }finally{
       flight.current=false;
       setSending(false);
+    }
+    // 落库成功后的通知放在 try 外：父级回调抛错不能回填原文，那时对话已经存上了。
+    if(!done)return;
+    setQuickReplies(done.reply.quickReplies);
+    onLine(done.reply.reply);
+    onPosture(done.reply.posture);
+    if(!consentDone){
+      // 同意标记只写一次；写失败也不影响本次对话，下次会再问。
+      setConsentGranted(true);
+      void act({type:'settings',chatConsent:true});
     }
   }
 
@@ -143,6 +174,13 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
       {quickReplies.map((reply,i)=><button type="button" key={`${reply.kind}-${i}`} className="chat-room__quick-reply" onClick={()=>pickQuick(reply)}>{reply.label}</button>)}
     </div>}
 
+    {/* 环境同意只出现一次：不是弹窗、不遮挡助手，也不挡输入，只挡发送按钮。 */}
+    {!consentDone&&<div className="chat-room__consent">
+      <label className="chat-room__consent-item"><input type="checkbox" checked={adultOk} onChange={e=>setAdultOk(e.target.checked)}/>我已满 18 岁</label>
+      <label className="chat-room__consent-item"><input type="checkbox" checked={consentOk} onChange={e=>setConsentOk(e.target.checked)}/>同意把目标、近期记录与储蓄进度发送给模型生成回复（照片、生日、人生纪念不会发送）</label>
+      {!canSend&&<p className="chat-room__hint">勾选以上两项后就能开始对话；手动记录一直可用。</p>}
+    </div>}
+
     <form className="chat-room__compose" onSubmit={send}>
       <input
         ref={inputRef}
@@ -156,7 +194,7 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
         enterKeyHint="send"
         autoComplete="off"
       />
-      <button type="submit" className="chat-room__send" disabled={sending||busy||!draft.trim()}>
+      <button type="submit" className="chat-room__send" disabled={sending||busy||!draft.trim()||!canSend}>
         {sending?'正在想…':<><Send size={16} aria-hidden="true"/>发送</>}
       </button>
     </form>
@@ -166,7 +204,7 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
         <h3 id="chat-room-records-title">今天的记录</h3>
         <button type="button" className="chat-room__export" onClick={()=>exportJournal(state,today)}><Download size={15} aria-hidden="true"/>导出今天的记录</button>
       </div>
-      {saveWarning&&<p className="chat-room__warning" role="alert">这次的记录没存上，重新加载后再试。</p>}
+      {saveWarning&&<p className="chat-room__warning" role="alert">这次的记录没存上。原文已放回输入框，再发一次就会用同一条回复重试。</p>}
       {todayRecords.length===0
         ? <p className="chat-room__empty">今天还没有记录。</p>
         : <ul className="chat-room__record-list">
