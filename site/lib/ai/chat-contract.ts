@@ -38,6 +38,9 @@ export function sanitizeChatResult(r: ChatResult, userText: string, prevPosture:
  const seen = new Set<string>();
  const records: ChatResult['records'] = [];
  for (const x of r.records) { if (!x.text.trim() || !text.includes(x.text) || seen.has(x.text)) continue; seen.add(x.text); records.push(x); }
+ // 记忆不做「必须是原话子串」的校验：records 存的是原话片段，记忆本来就是提炼过的说法
+ // （「在读一本讲并发的书」对应原话「我最近在读一本讲并发的书」）。套上子串校验会把
+ // 「它记住的事」整个静默废掉——那比偶尔记错一句更糟。风险留在 spec 6.3 的已知窄口子里。
  const base = { ...r, records: records.slice(0, 3), memoryCandidates: r.memoryCandidates.slice(0, 5), quickReplies: r.quickReplies.slice(0, 3) };
  if (r.posture === 'counselor' && prevPosture === 'companion' && !switchConsent) return { ...base, posture: 'companion', askSwitch: true };
  if (r.posture === 'companion') return { ...base, askSwitch: false };

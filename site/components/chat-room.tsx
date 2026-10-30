@@ -8,6 +8,7 @@ import {type Action,type Game,type JournalEntry,availableXP,day,domains} from '@
 import {TIRED_LINE} from '@/lib/assistant-line';
 import {exportJournal} from '@/lib/export-journal';
 import {newId} from '@/lib/ids';
+import {fitChatTurn} from '@/lib/chat-payload';
 import type {ChatResult} from '@/lib/ai/chat-contract';
 import './chat-room.css';
 
@@ -136,8 +137,13 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
       // run.id 就是 requestId，chat-turn 用它做 clientId，重复提交天然幂等。
       let saved=false;
       try{
-        saved=await act({type:'chat-turn',clientId:run.id,userText:text,reply:run.reply.reply,posture:run.reply.posture,askSwitch:run.reply.askSwitch,records:run.reply.records,memoryCandidates:run.reply.memoryCandidates});
-      }catch{saved=false;}
+        const action={type:'chat-turn' as const,clientId:run.id,userText:text,reply:run.reply.reply,posture:run.reply.posture,askSwitch:run.reply.askSwitch,records:run.reply.records,memoryCandidates:run.reply.memoryCandidates};
+        // 直接发会被 /api/game 的 10KB 上限挡成 413，而重试复用的是同一份 payload，
+        // 于是这条对话永远存不上、额度却已经扣过一次。先按 reducer 的同一套位数压进上限。
+        const fitted=fitChatTurn(action);
+        if(!fitted)throw new Error('这段话太长了，没能整理成记录。缩短一些再发一次。');
+        saved=await act(fitted);
+      }catch(err){saved=false;if(err instanceof Error&&!('status' in err))toast.error(err.message);}
       if(!saved){
         // 冲突/登录失效时 act 根本没发请求就返回 false：原文必须回到输入框，回复留着下次重试。
         // act 自己已经 toast 过，这里只在记录区补一句说明。
@@ -211,7 +217,7 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
       {/* 清单默认收起：首屏只交代「对话和记录会发出去」，细节留给愿意细看的人。summary 自带键盘与读屏支持。 */}
       <details className="chat-room__consent-details">
         <summary>具体发送什么</summary>
-        <p>对话原文（最近 40 条）、长期记忆（最多 40 条）、目标与近期行动记录、储蓄进度。照片、生日、人生纪念不会发送。</p>
+        <p>对话原文（最近 40 条）、长期记忆（最多 40 条）、目标与近期行动记录、储蓄进度、等级与今日经验。照片、生日、人生纪念不会发送。</p>
       </details>
       {!canSend&&<p className="chat-room__hint">勾选以上两项后就能开始对话；手动记录一直可用。</p>}
     </div>}
