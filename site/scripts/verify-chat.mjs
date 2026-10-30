@@ -694,7 +694,7 @@ assert.equal(kept.logs.length,after.logs.length,'keep 不得新增记录');
 assert.equal(kept.tasks.length,after.tasks.length,'keep 不得新增行动');
 assert.equal(xp(kept),xp(after),'keep 不得改变经验值');
 // 重复调用同一 id 必须报错，而不是静默成功
-assert.throws(()=>reduceGame(kept,{type:'keep-record',id:kept.journal[0].id},new Date()),/已经认领/,'重复 keep 应报错');
+assert.throws(()=>reduceGame(kept,{type:'keep-record',id:kept.journal[0].id},new Date()),/只留着/,'重复 keep 应报出真实原因');
 // 已认领的记录不能被「不算」降级
 assert.throws(()=>reduceGame(c,{type:'keep-record',id:c.journal[0].id},new Date()),/已经认领/,'已认领记录不能降级为 kept');
 assert.equal(c.journal[0].status,'claimed','失败的 keep 不得改动原状态');
@@ -739,9 +739,38 @@ console.log('PASS chatConsent 默认关闭、可写入且不被其他设置重�
 // 结构冒烟：chat-room.tsx 没有渲染测试宿主，只能守住这几处一旦退化就会烧额度/丢记录的结构。
 const chatRoom=source('components/chat-room.tsx');
 assert.ok(/const retry=unsaved\.current/.test(chatRoom),'未落库的那一轮必须被记住以便重试');
-assert.ok(chatRoom.indexOf("fetch('/api/chat'")>chatRoom.indexOf('if(retry)'),'重试必须在发请求之前短路，不能再烧一次额度');
+// 先断言标记存在，再断言顺序：标记一旦消失，indexOf 返回 -1 不能让比较恒真。
+const retryMark=chatRoom.indexOf('if(retry)');
+assert.ok(retryMark>-1,'必须存在 if(retry) 重试短路');
+const callsChat=chatRoom.indexOf("fetch('/api/chat'");
+assert.ok(callsChat>-1,'必须存在 /api/chat 调用');
+assert.ok(callsChat>retryMark,'重试必须在发请求之前短路，不能再烧一次额度');
 assert.ok(chatRoom.indexOf('onLine(')>chatRoom.indexOf('}catch(err)'),'onLine 必须在 try 之外：落库成功后回调抛错不得回填原文');
+// 运行时守卫必须存在且必须能拦住
+assert.ok(/if\(!retry&&!canSend\)return;/.test(chatRoom),'缺了 canSend 运行时守卫，回车提交可绕过勾选');
+// 同意行 UI 必须真的渲染两个勾选框，且发送按钮真的读 canSend
+assert.ok((chatRoom.match(/chat-room__consent-item/g)||[]).length>=2,'同意行必须渲染两个勾选框');
+assert.ok(/disabled=\{[^}]*canSend[^}]*\}/.test(chatRoom),'发送按钮必须真的受 canSend 约束');
+// 同意行必须在 !consentDone 时才渲染
+assert.ok(/!consentDone&&/.test(chatRoom),'同意行必须只在未同意时出现');
 assert.ok(chatRoom.includes('state.settings.chatConsent')&&chatRoom.includes('chatConsent:true'),'同意门槛必须读存档并写回存档');
+// 同意文案必须如实披露实际发送的四类内容（chat-context 会带 recentChat 与 memory）
+assert.ok(chatRoom.includes('对话原文（最近 40 条）'),'同意文案必须披露对话原文发送');
+assert.ok(chatRoom.includes('长期记忆（最多 40 条）'),'同意文案必须披露长期记忆发送');
+assert.ok(chatRoom.includes('目标与近期行动记录'),'同意文案必须披露目标与近期行动记录');
+assert.ok(chatRoom.includes('储蓄进度'),'同意文案必须披露储蓄进度');
+assert.ok(chatRoom.includes('照片、生日、人生纪念不会发送'),'不会发送那半句保持不变');
 assert.ok(chatRoom.includes("type:'unclaim-record'")&&chatRoom.includes("type:'keep-record'"),'记录卡必须提供保留与撤销认领');
 assert.ok(chatRoom.indexOf("type:'unclaim-record'")!==-1&&chatRoom.indexOf("type:'delete-journal',id:entry.id")>chatRoom.indexOf("type:'unclaim-record'"),'撤销认领与删除必须是两个不同的动作');
-console.log('PASS 对话区结构冒烟：重试复用、通知时序、同意门槛、撤销与删除分离');
+// 删除必须两步确认：初次点「删除」只进入确认态，真正删除留在确认分支里
+assert.ok(/useState<string\|null>\(null\)/.test(chatRoom),'删除确认态必须用 useState<string|null> 记住是哪一条');
+const firstDelete=chatRoom.indexOf('aria-label={`删除这条记录');
+assert.ok(firstDelete>-1,'必须保留初次「删除」按钮');
+// 取整个 <button>…</button>：从它前面的 <button 截到下一个 </button>，避免截到 onClick 里的 =>
+const firstButton=chatRoom.slice(chatRoom.lastIndexOf('<button',firstDelete),chatRoom.indexOf('</button>',firstDelete));
+assert.ok(firstButton.includes('删除'),'初次按钮文案是「删除」');
+assert.ok(!firstButton.includes('delete-journal'),'初次点「删除」不得一键永久删除，必须先进入确认态');
+assert.ok(chatRoom.includes('确定删除？'),'确认态必须问「确定删除？」');
+assert.ok(chatRoom.includes('删除后这条记录就不能恢复了'),'必须说明删除不可恢复');
+assert.ok(chatRoom.indexOf("type:'delete-journal',id:entry.id")>chatRoom.indexOf('确定删除？'),'真正的删除动作必须出现在确认态之后');
+console.log('PASS 对话区结构冒烟：重试复用、通知时序、同意门槛与披露、撤销与两步删除');

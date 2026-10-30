@@ -147,7 +147,7 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
   recalculate(s);entry.status='claimed';entry.logId=logId;return s;
  }
  // 「不算」只改状态：不动经验、logs 与 tasks，只处理仍待认领的记录。
- if(a.type==='keep-record'){const entry=s.journal.find(j=>j.id===a.id&&j.status==='pending');if(!entry)throw new Error('记录不存在或已经认领');entry.status='kept';return s;}
+ if(a.type==='keep-record'){const entry=s.journal.find(j=>j.id===a.id);if(!entry)throw new Error('记录不存在或已经认领');if(entry.status==='kept')throw new Error('这条记录已经是「只留着」了');if(entry.status!=='pending')throw new Error('记录不存在或已经认领');entry.status='kept';return s;}
  // 撤销认领：只回收行动与经验，记录本身退回 kept 并留在存档/导出里。
  if(a.type==='unclaim-record'){
   const entry=s.journal.find(j=>j.id===a.id&&j.status==='claimed');if(!entry)throw new Error('只有已认领的记录可以撤销认领');

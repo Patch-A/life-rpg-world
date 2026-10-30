@@ -293,6 +293,44 @@
   color:#a99cc0;
 }
 .chat-room__delete:hover:not(:disabled){border-color:#e88b8b55;color:#f3b6b6}
+.chat-room__delete-confirm-box{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+  margin-left:auto;
+}
+.chat-room__delete-prompt{
+  color:#f3b6b6;
+  font-size:12.5px;
+  line-height:1.5;
+}
+.chat-room__delete-confirm,
+.chat-room__delete-cancel{
+  display:inline-flex;
+  align-items:center;
+  min-height:36px;
+  padding:0 12px;
+  border-radius:11px;
+  font-size:12.5px;
+  cursor:pointer;
+}
+.chat-room__delete-confirm{
+  border:1px solid #e88b8b;
+  background:#5a2727;
+  color:#ffe3e3;
+}
+.chat-room__delete-confirm:hover:not(:disabled){background:#733030}
+.chat-room__delete-cancel{
+  border:1px solid #a98ec54d;
+  background:#241f3a;
+  color:#d9cdf2;
+}
+.chat-room__delete-cancel:hover:not(:disabled){border-color:#c6a6ed}
+.chat-room__delete-confirm:disabled,
+.chat-room__delete-cancel:disabled{opacity:.5;cursor:not-allowed}
+.chat-room__delete-confirm:focus-visible,
+.chat-room__delete-cancel:focus-visible{outline:2px solid #d6baff;outline-offset:2px}
 .chat-room__claim:disabled,
 .chat-room__keep:disabled,
 .chat-room__undo:disabled,

@@ -19,13 +19,14 @@ function timeOf(at:string){if(typeof at!=='string'||!at)return '';const d=new Da
 // 记录的 domain 缺失时与 claim-record 的兜底一致，按认知展示。
 function domainMeta(id:string|undefined){return domains.find(d=>d.id===id)??domains[0];}
 
-function RecordCard({entry,state,busy,sending,act}:{entry:JournalEntry;state:Game;busy:boolean;sending:boolean;act:Act}){
+function RecordCard({entry,state,busy,sending,act,confirming,onAskDelete,onCancelDelete}:{entry:JournalEntry;state:Game;busy:boolean;sending:boolean;act:Act;confirming:boolean;onAskDelete:()=>void;onCancelDelete:()=>void}){
   const meta=domainMeta(entry.domain),locked=busy||sending;
   // 经验受「当日同领域上限 30」约束：如实显示会得到的值，避免点下去发现是 0。
   const left=availableXP(state,meta.id);
   const claimLabel=left>0?`算，记进${meta.name} · +${left} EXP`:`算，记进${meta.name} · 今日已满`;
   const time=timeOf(entry.at);
-  return <article className="chat-room__record" data-status={entry.status}>
+  // 点卡片其他位置、或点了别的记录，都退回初始态，免得「确定删除」一直挂在那儿。
+  return <article className="chat-room__record" data-status={entry.status} onClick={onCancelDelete}>
     <div className="chat-room__record-head">
       <span className="chat-room__dot" style={{background:meta.color}} aria-hidden="true"/>
       <span className="chat-room__record-meta">{meta.name}{time?` · ${time}`:''}</span>
@@ -38,7 +39,14 @@ function RecordCard({entry,state,busy,sending,act}:{entry:JournalEntry;state:Gam
       {entry.status==='pending'&&<button type="button" className="chat-room__keep" disabled={locked} onClick={()=>act({type:'keep-record',id:entry.id})}>就记着</button>}
       {/* 撤销认领只回收行动与经验；记录本身留在今天的记录和导出里。 */}
       {entry.status==='claimed'&&<button type="button" className="chat-room__undo" disabled={locked} onClick={()=>act({type:'unclaim-record',id:entry.id})}><Undo2 size={14} aria-hidden="true"/>撤销认领</button>}
-      <button type="button" className="chat-room__delete" disabled={locked} aria-label={`删除这条记录：${entry.summary}`} onClick={()=>act({type:'delete-journal',id:entry.id})}><Trash2 size={14} aria-hidden="true"/>删除</button>
+      {/* 删除不可恢复，所以走两步：先问一句，确认才真的删。 */}
+      {confirming
+        ? <span className="chat-room__delete-confirm-box" onClick={e=>e.stopPropagation()}>
+            <span className="chat-room__delete-prompt">确定删除？删除后这条记录就不能恢复了</span>
+            <button type="button" className="chat-room__delete-confirm" disabled={locked} onClick={()=>act({type:'delete-journal',id:entry.id})}>确定删除</button>
+            <button type="button" className="chat-room__delete-cancel" disabled={locked} onClick={onCancelDelete}>取消</button>
+          </span>
+        : <button type="button" className="chat-room__delete" disabled={locked} aria-label={`删除这条记录：${entry.summary}`} onClick={e=>{e.stopPropagation();onAskDelete();}}><Trash2 size={14} aria-hidden="true"/>删除</button>}
     </div>
   </article>;
 }
@@ -61,6 +69,8 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
   const [adultOk,setAdultOk]=useState(false);
   const [consentOk,setConsentOk]=useState(false);
   const [consentGranted,setConsentGranted]=useState(false);
+  // 删除确认态：记住哪一条正在确认；点别的记录的删除会自然把上一条复位。
+  const [confirmDelete,setConfirmDelete]=useState<string|null>(null);
   const flight=useRef(false);
   // 切咨询师的同意只对紧跟的那一次请求有效，发送时立刻清零。
   const consentOnce=useRef(false);
@@ -69,7 +79,7 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
   const inputRef=useRef<HTMLInputElement|null>(null);
   const streamRef=useRef<HTMLDivElement|null>(null);
   const today=day();
-  const todayRecords=[...state.journal].filter(e=>e.date===today).sort((a,b)=>a.at.localeCompare(b.at));
+  const todayRecords=[...state.journal].filter(e=>e.date===today).sort((a,b)=>String(a.at||'').localeCompare(String(b.at||'')));
   // 同意只问一次：存档里记过、或这次会话里已经同意过，就不再显示。
   const consentDone=consentGranted||state.settings.chatConsent===true;
   const canSend=consentDone||(adultOk&&consentOk);
@@ -177,7 +187,7 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
     {/* 环境同意只出现一次：不是弹窗、不遮挡助手，也不挡输入，只挡发送按钮。 */}
     {!consentDone&&<div className="chat-room__consent">
       <label className="chat-room__consent-item"><input type="checkbox" checked={adultOk} onChange={e=>setAdultOk(e.target.checked)}/>我已满 18 岁</label>
-      <label className="chat-room__consent-item"><input type="checkbox" checked={consentOk} onChange={e=>setConsentOk(e.target.checked)}/>同意把目标、近期记录与储蓄进度发送给模型生成回复（照片、生日、人生纪念不会发送）</label>
+      <label className="chat-room__consent-item"><input type="checkbox" checked={consentOk} onChange={e=>setConsentOk(e.target.checked)}/>同意把对话原文（最近 40 条）、长期记忆（最多 40 条）、目标与近期行动记录、储蓄进度发送给模型生成回复（照片、生日、人生纪念不会发送）</label>
       {!canSend&&<p className="chat-room__hint">勾选以上两项后就能开始对话；手动记录一直可用。</p>}
     </div>}
 
@@ -204,11 +214,11 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
         <h3 id="chat-room-records-title">今天的记录</h3>
         <button type="button" className="chat-room__export" onClick={()=>exportJournal(state,today)}><Download size={15} aria-hidden="true"/>导出今天的记录</button>
       </div>
-      {saveWarning&&<p className="chat-room__warning" role="alert">这次的记录没存上。原文已放回输入框，再发一次就会用同一条回复重试。</p>}
+      {saveWarning&&<p className="chat-room__warning" role="alert">这次的记录没存上。原文已放回输入框：直接再发会用同一条回复重试，改了字就会重新问一次。</p>}
       {todayRecords.length===0
         ? <p className="chat-room__empty">今天还没有记录。</p>
         : <ul className="chat-room__record-list">
-          {todayRecords.map(entry=><li key={entry.id}><RecordCard entry={entry} state={state} busy={busy} sending={sending} act={act}/></li>)}
+          {todayRecords.map(entry=><li key={entry.id}><RecordCard entry={entry} state={state} busy={busy} sending={sending} act={act} confirming={confirmDelete===entry.id} onAskDelete={()=>setConfirmDelete(entry.id)} onCancelDelete={()=>setConfirmDelete(null)}/></li>)}
         </ul>}
     </section>
   </section>;
