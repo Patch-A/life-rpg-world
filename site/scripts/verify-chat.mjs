@@ -8,10 +8,27 @@ const url=code=>'data:text/javascript;base64,'+Buffer.from(ts.transpileModule(co
 const appearance=url(source('lib/appearance.ts')),birthday=url(source('lib/birthday.ts'));
 const game=url(source('lib/game.ts').replace("from './appearance'",`from '${appearance}'`).replace("from './birthday'",`from '${birthday}'`));
 // 旧存档兼容 + 新字段默认值
-const {normalizeGame,blank}=await import(game);
+const {normalizeGame,blank,reduceGame,xp}=await import(game);
 const legacy={profile:{name:'测试',focus:'mind',createdAt:new Date().toISOString()},goals:[],tasks:[],logs:[],events:[],milestones:[],claims:[],equipped:'explorer',birthday:null,birthdays:[],birthdayQueue:[],reviews:[],agentAccepts:[],settings:{celebrations:true,memoryPromptSeen:false}};
 const n=normalizeGame(legacy);
 assert.deepEqual(n.journal,[]);assert.deepEqual(n.chat,[]);assert.deepEqual(n.memory,[]);assert.deepEqual(n.monsters,[]);
 assert.equal(n.logs.length,0);assert.equal(n.profile.name,'测试');
 assert.deepEqual(blank().journal,[]);
 console.log('PASS 旧存档补齐新字段且不清空既有数据');
+// 聊天写入、幂等、记忆合并、不动经验值
+const start=reduceGame(blank(),{type:'onboard',name:'测试',focus:'mind',gender:'male'},new Date());
+const turn={type:'chat-turn',clientId:crypto.randomUUID(),userText:'今天看完了第三章，卡在并发',reply:'卡住的地方具体是哪一步？',posture:'companion',records:[{summary:'看完第三章',text:'今天看完了第三章',domain:'mind',tags:['学习']}],memoryCandidates:[{text:'在读一本讲并发的书',kind:'situation'}]};
+const after=reduceGame(start,turn,new Date());
+assert.equal(after.chat.length,2);
+assert.equal(after.chat[0].role,'user');assert.equal(after.chat[1].role,'assistant');
+assert.equal(after.journal.length,1);assert.equal(after.journal[0].status,'pending');assert.equal(after.journal[0].runId,turn.clientId);
+assert.equal(after.journal[0].text,'今天看完了第三章');
+assert.equal(after.memory.length,1);assert.equal(after.memory[0].weight,1);
+assert.equal(xp(after),xp(start),'聊天不应改变经验值');
+// 幂等：同一个 clientId 重复提交不重复写
+assert.equal(reduceGame(after,turn,new Date()).chat.length,2);
+// 记忆合并：同样的话再说一次，weight 变 2 而不是新增一条
+const again={...turn,clientId:crypto.randomUUID(),memoryCandidates:[{text:'在读一本讲并发的书',kind:'situation'}]};
+const merged=reduceGame(after,again,new Date());
+assert.equal(merged.memory.length,1);assert.equal(merged.memory[0].weight,2);
+console.log('PASS 聊天写入、幂等、记忆合并、不动经验值');
