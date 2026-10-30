@@ -289,7 +289,8 @@ const {DatabaseSync}=await import('node:sqlite');
 const chatSqlite=new DatabaseSync(':memory:');
 for(const f of readdirSync(new URL('../drizzle/',import.meta.url)).filter(f=>f.endsWith('.sql')).sort())chatSqlite.exec(source('drizzle/'+f));
 let failCleanup=false; // 让 30 天惰性清理抛错，验证它不会把已保存的回复降级
-const chatDb={prepare(sql){let args=[];return{bind(...values){args=values;return this;},async first(){return chatSqlite.prepare(sql).get(...args)||null;},async run(){if(failCleanup&&sql.includes('LIMIT 100'))throw new Error('cleanup failed');return{meta:{changes:Number(chatSqlite.prepare(sql).run(...args).changes)}};}};}};
+const wrapDb=sqlite=>({prepare(sql){let args=[];return{bind(...values){args=values;return this;},async first(){return sqlite.prepare(sql).get(...args)||null;},async run(){if(failCleanup&&sql.includes('LIMIT 100'))throw new Error('cleanup failed');return{meta:{changes:Number(sqlite.prepare(sql).run(...args).changes)}};}};}});
+const chatDb=wrapDb(chatSqlite);
 globalThis.__chatDB=chatDb;
 globalThis.__chatEnv={DEEPSEEK_API_KEY:'isolated-test',DEEPSEEK_MODEL:'test-model',AI_USER_DAILY_LIMIT:'10',AI_SITE_DAILY_LIMIT:'100'};
 const guardUrl=url(source('lib/request-guard.ts')),identityUrl=url(source('lib/identity.ts'));
@@ -398,10 +399,6 @@ try{
  chatSqlite.prepare("INSERT INTO agent_runs(id,user_id,date,goal_id,status,result,created_at) VALUES(?,?,?,'__chat__','pending','',?)").run(pendingId,'alice',gameDay(),new Date().toISOString());
  assert.equal((await chat.POST(chatReq('alice',{...chatBody,requestId:crypto.randomUUID()}))).status,429,'已有回复生成中时不得再发');
  chatSqlite.prepare('DELETE FROM agent_runs WHERE id=?').run(pendingId);
- // 反向隔离 1：行动助手的行不能吃掉聊天额度（注意此前 AI_USER_DAILY_LIMIT=10）
- for(let i=0;i<10;i++)chatSqlite.prepare("INSERT INTO agent_runs(id,user_id,date,goal_id,status,result,created_at) VALUES(?,?,?,'g-agent','complete','{}',?)").run(crypto.randomUUID(),'erin',gameDay(),new Date().toISOString());
- assert.equal(chatCount('erin'),0);
- assert.equal((await chat.POST(chatReq('erin',{...chatBody,requestId:crypto.randomUUID()}))).status,200,'agent 行不得占用聊天额度');
  // 幂等查询只认本路由自己的聊天行：撞上 agent 行或 30 天前的旧行都必须重新生成，而不是把别人的结果当 ChatRun 返回
  const clashId=crypto.randomUUID();
  chatSqlite.prepare("INSERT INTO agent_runs(id,user_id,date,goal_id,status,result,created_at) VALUES(?,?,?,'g-agent','complete',?,?)").run(clashId,'erin',gameDay(),JSON.stringify({id:clashId,mode:'plan',result:{}}),new Date().toISOString());
@@ -437,5 +434,30 @@ try{
  assert.equal(chatSqlite.prepare("SELECT data FROM saves WHERE user_id='alice'").get().data,chatSaved,'聊天路由不写存档');
  assert.equal(chatSqlite.prepare("SELECT COUNT(*) AS n FROM agent_runs WHERE user_id='alice' AND goal_id<>'__chat__'").get().n,1,'alice 的非聊天行只有上面那次 /api/agent 调用');
  assert.equal(chatSqlite.prepare('SELECT id FROM agent_runs WHERE user_id=? AND goal_id<>\'__chat__\'').get('alice').id,agentBody.requestId,'聊天路由没有写入任何 agent 行');
+ // 反向额度隔离：换一个全新空库重跑，站点日计数才能从 0 起算
+ // （留在主库的话，之前累积的聊天行会把限额占满，这条断言就算不出区分度）
+ const freshSqlite=new DatabaseSync(':memory:');
+ for(const f of readdirSync(new URL('../drizzle/',import.meta.url)).filter(f=>f.endsWith('.sql')).sort())freshSqlite.exec(source('drizzle/'+f));
+ globalThis.__chatDB=wrapDb(freshSqlite);
+ freshSqlite.prepare('INSERT INTO saves(user_id,data,revision) VALUES(?,?,0)').run('frank',chatSaved);
+ globalThis.__chatEnv.AI_CHAT_USER_DAILY_LIMIT='5';globalThis.__chatEnv.AI_CHAT_SITE_DAILY_LIMIT='5';
+ const freshDay=gameDay();
+ // 4 条已完成 + 1 条在途：分别压到用户日计数、站点日计数与 NOT EXISTS 在途锁三处过滤
+ for(const row of [...Array.from({length:4},()=>({status:'complete',result:'{}'})),{status:'pending',result:''}])
+  freshSqlite.prepare("INSERT INTO agent_runs(id,user_id,date,goal_id,status,result,created_at) VALUES(?,?,?,'g-agent',?,?,?)").run(crypto.randomUUID(),'frank',freshDay,row.status,row.result,new Date().toISOString());
+ assert.equal(Number(freshSqlite.prepare('SELECT COUNT(*) AS n FROM agent_runs').get().n),5);
+ assert.equal(Number(freshSqlite.prepare("SELECT COUNT(*) AS n FROM agent_runs WHERE goal_id='__chat__'").get().n),0,'空库起点：没有任何聊天行');
+ const frankRes=await chat.POST(chatReq('frank',{...chatBody,requestId:crypto.randomUUID()}));
+ assert.equal(frankRes.status,200,'5 条 agent 行（含一条在途）不得占用额度同为 5 的聊天配额');
+ const frankRunId=(await frankRes.json()).run.id;
+ // agent 的 DELETE 不得删除聊天行，否则额度会被一次删除悄悄重置
+ globalThis.__chatEnv.AI_CHAT_USER_DAILY_LIMIT='1';
+ assert.equal((await chat.POST(chatReq('frank',{...chatBody,requestId:crypto.randomUUID()}))).status,429,'额度为 1 且已用掉 1 次');
+ const delRes=await agent.DELETE(new Request('https://test.invalid/api/agent',{method:'DELETE',headers:{'oai-authenticated-user-id':'frank','Content-Type':'application/json'},body:JSON.stringify({id:frankRunId})}));
+ assert.equal(delRes.status,200);
+ assert.equal(Number(freshSqlite.prepare('SELECT COUNT(*) AS n FROM agent_runs WHERE id=?').get(frankRunId).n),1,'/api/agent 的 DELETE 不得删除聊天行');
+ assert.equal((await chat.POST(chatReq('frank',{...chatBody,requestId:crypto.randomUUID()}))).status,429,'聊天行没被删除，额度不得被重置');
+ globalThis.__chatEnv.AI_CHAT_USER_DAILY_LIMIT='50';globalThis.__chatEnv.AI_CHAT_SITE_DAILY_LIMIT='500';
+ freshSqlite.close();globalThis.__chatDB=chatDb;
  console.log('PASS 聊天路由：鉴权、同意校验、姿态打回、防编造、切换按钮过滤、双向额度隔离、18+、停用开关、幂等与失败落库');
 }finally{globalThis.fetch=chatOldFetch;process.env.NODE_ENV=oldNodeEnv;delete globalThis.__chatDB;delete globalThis.__chatEnv;chatSqlite.close();}
