@@ -138,18 +138,20 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
  }
  if(a.type==='claim-record'){
   const entry=s.journal.find(j=>j.id===a.id&&j.status==='pending');if(!entry)throw new Error('记录不存在或已经认领');
-  const taskDomain=entry.domain??'mind',taskId=id(),logId=id();
-  s.tasks.push({id:taskId,title:entry.summary,domain:taskDomain,target:1,unit:'次',repeat:false,goalId:'',archived:false,evidence:'optional',originRunId:entry.runId});
-  s.logs.push({id:logId,taskId,title:entry.summary,domain:taskDomain,value:1,unit:'次',goalId:'',xp:0,date:today,at,undone:false,note:entry.text,source:'manual'});
+  if(s.tasks.filter(t=>!t.archived).length>=100)throw new Error('请先归档不再需要的行动');
+  if(s.logs.length>=10000)throw new Error('记录已达容量上限，请先导出存档');
+  const taskDomain=entry.domain??'mind',taskId=id(),logId=id(),title=entry.summary.slice(0,80);
+  s.tasks.push({id:taskId,title,domain:taskDomain,target:1,unit:'次',repeat:false,goalId:'',archived:false,evidence:'optional',originRunId:entry.runId});
+  s.logs.push({id:logId,taskId,title,domain:taskDomain,value:1,unit:'次',goalId:'',xp:0,date:today,at,undone:false,note:entry.text,source:'manual'});
   recalculate(s);entry.status='claimed';entry.logId=logId;return s;
  }
  if(a.type==='delete-journal'){
   const entry=s.journal.find(j=>j.id===a.id);if(!entry)throw new Error('记录不存在');
   s.journal=s.journal.filter(j=>j.id!==entry.id);
-  if(entry.status==='claimed'&&entry.logId){const l=s.logs.find(l=>l.id===entry.logId);if(l){l.undone=true;l.updatedAt=at;recalculate(s);}}
+  if(entry.status==='claimed'&&entry.logId){const l=s.logs.find(l=>l.id===entry.logId);if(l){l.undone=true;l.updatedAt=at;const t=s.tasks.find(t=>t.id===l.taskId);if(t&&!s.logs.some(x=>x.taskId===t.id&&!x.undone))t.archived=true;recalculate(s);}}
   return s;
  }
- if(a.type==='delete-memory'){if(typeof a.id==='string'&&a.id)s.memory=s.memory.filter(m=>m.id!==a.id);else s.memory=[];return s;}
+ if(a.type==='delete-memory-fact'){if(typeof a.id==='string'&&a.id)s.memory=s.memory.filter(m=>m.id!==a.id);else s.memory=[];return s;}
  if(a.type==='task'){
   const existing=s.tasks.find(t=>t.id===a.id);if(a.id&&!existing)throw new Error('行动不存在');
   if(!a.id&&s.tasks.filter(t=>!t.archived).length>=100)throw new Error('请先归档不再需要的行动');
