@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { Domain } from '@/lib/game';
 const postures = ['companion', 'counselor'] as const;
 const domainIds = ['mind', 'health', 'career', 'wealth', 'social'] as const satisfies readonly Domain[];
-// 元素级一律宽松：单条脏数据就地修正或丢弃，只有 records/quickReplies 数组超量才让整轮失败。
+// 元素级一律宽松：单条脏数据就地修正或丢弃。条数上限（records/quickReplies 各 3）是产出约束，由 sanitize 清洗后截断，schema 不因此整轮失败。
 const cut = (v: unknown, max: number) => typeof v === 'string' ? v.trim().slice(0, max) : '';
 const shape = (v: unknown) => (v && typeof v === 'object' ? v : {});
 const recordSchema = z.preprocess(shape, z.object({
@@ -23,9 +23,9 @@ export const chatResultSchema = z.object({
  reply: z.string().trim().min(1).max(2000),
  posture: z.enum(postures),
  askSwitch: z.boolean(),
- records: z.preprocess(v => Array.isArray(v) ? v : [], z.array(recordSchema).max(3)).transform(a => a.flatMap(x => x ? [x] : [])),
+ records: z.preprocess(v => Array.isArray(v) ? v : [], z.array(recordSchema)).transform(a => a.flatMap(x => x ? [x] : [])),
  memoryCandidates: z.preprocess(v => Array.isArray(v) ? v : [], z.array(memoryCandidateSchema)).transform(a => a.flatMap(x => x ? [x] : [])),
- quickReplies: z.preprocess(v => Array.isArray(v) ? v : [], z.array(quickReplySchema).max(3)).transform(a => a.flatMap(x => x ? [x] : [])),
+ quickReplies: z.preprocess(v => Array.isArray(v) ? v : [], z.array(quickReplySchema)).transform(a => a.flatMap(x => x ? [x] : [])),
 });
 export type ChatResult = z.infer<typeof chatResultSchema>;
 export type Posture = typeof postures[number];
@@ -34,8 +34,8 @@ export function sanitizeChatResult(r: ChatResult, userText: string, prevPosture:
  const text = userText.trim();
  const seen = new Set<string>();
  const records: ChatResult['records'] = [];
- for (const x of r.records) { if (!x.text.trim() || !text.includes(x.text) || seen.has(x.text)) continue; seen.add(x.text); records.push(x); if (records.length === 3) break; }
- const base = { ...r, records, memoryCandidates: r.memoryCandidates.slice(0, 5) };
+ for (const x of r.records) { if (!x.text.trim() || !text.includes(x.text) || seen.has(x.text)) continue; seen.add(x.text); records.push(x); }
+ const base = { ...r, records: records.slice(0, 3), memoryCandidates: r.memoryCandidates.slice(0, 5), quickReplies: r.quickReplies.slice(0, 3) };
  if (r.posture === 'counselor' && prevPosture === 'companion' && !switchConsent) return { ...base, posture: 'companion', askSwitch: true };
  if (r.posture === 'companion') return { ...base, askSwitch: false };
  return base;

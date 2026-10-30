@@ -110,16 +110,29 @@ assert.equal(sanitizeChatResult(raw,userText,'counselor',false).askSwitch,false)
 // 4c 空正文记录必须丢弃（text.includes('') 恒真，不能靠 schema 的 min(1) 兜底）
 assert.equal(sanitizeChatResult({...raw,posture:'companion',records:[{summary:'空正文',text:'',domain:'mind',tags:[]}]},userText,'companion',false).records.length,0);
 assert.equal(sanitizeChatResult({...raw,posture:'companion',records:[{summary:'空白正文',text:'   ',domain:'mind',tags:[]}]},userText,'companion',false).records.length,0);
-// 5 契约拒绝超量
-assert.throws(()=>chatResultSchema.parse({...raw,records:new Array(4).fill(raw.records[0])}));
-console.log('PASS 防编造、姿态升级需同意、降级放行、契约限流');
+// 5 超量不报错：4 条合法记录进 sanitize，产出恰好前 3 条
+const four=[{summary:'一',text:'今天看完了第三章',domain:'mind',tags:[]},{summary:'二',text:'卡在并发',domain:'mind',tags:[]},{summary:'三',text:'今天',domain:'health',tags:[]},{summary:'四',text:'并发',domain:'career',tags:[]}];
+const fourOut=sanitizeChatResult(chatResultSchema.parse({...raw,records:four}),userText,'companion',true);
+assert.equal(fourOut.records.length,3);assert.deepEqual(fourOut.records.map(r=>r.summary),['一','二','三']);
+// 5b 4 条里混 2 条脏的：脏的丢弃，剩 2 条正常返回，不抛
+const mixed=sanitizeChatResult(chatResultSchema.parse({...raw,records:[{summary:'一',text:'今天看完了第三章',domain:'mind',tags:[]},{summary:'编的',text:'我昨天还学了英语',domain:'mind',tags:[]},{summary:'空',text:'',domain:'mind',tags:[]},{summary:'二',text:'卡在并发',domain:'study',tags:null}]}),userText,'companion',true);
+assert.equal(mixed.records.length,2);assert.deepEqual(mixed.records.map(r=>r.summary),['一','二']);assert.equal(mixed.records[1].domain,undefined);
+// 5c quickReplies 超 3 条：schema 不抛，sanitize 清后切到 3
+const many=chatResultSchema.parse({...raw,quickReplies:Array.from({length:5},(_,i)=>({label:'选项'+i,kind:i?'say':'accept-switch'}))});
+assert.equal(many.quickReplies.length,5);
+const manyOut=sanitizeChatResult(many,userText,'companion',true);
+assert.equal(manyOut.quickReplies.length,3);assert.deepEqual(manyOut.quickReplies.map(q=>q.label),['选项0','选项1','选项2']);
+// 5d quickReplies 里混脏元素（空 label / 非对象）也只丢单条
+const qDirty=sanitizeChatResult(chatResultSchema.parse({...raw,quickReplies:[{label:'',kind:'say'},'x',{label:'好',kind:'other'}]}),userText,'companion',true);
+assert.equal(qDirty.quickReplies.length,1);assert.equal(qDirty.quickReplies[0].kind,'say');
+console.log('PASS 防编造、姿态升级需同意、降级放行、超量清洗后截断');
 // 去重后仍超量时兜底截断到 3；不修改入参
 const dup={...raw,records:[{summary:'a',text:'今天',domain:'mind',tags:[]},{summary:'a',text:'今天',domain:'mind',tags:[]},{summary:'b',text:'看完',domain:'mind',tags:[]},{summary:'c',text:'第三章',domain:'mind',tags:[]},{summary:'d',text:'并发',domain:'mind',tags:[]}]};
 const cut=sanitizeChatResult(dup,userText,'companion',true);
 assert.equal(cut.records.length,3);assert.deepEqual(cut.records.map(r=>r.text),['今天','看完','第三章']);
 assert.equal(dup.records.length,5);assert.equal(raw.records.length,2);
 console.log('PASS 记录去重与超量兜底、入参不被改写');
-// 元素级宽松：单条脏数据只修正或丢弃，不把整轮对话打成 503；数组超量仍致命
+// 元素级宽松：单条脏数据只修正或丢弃，不把整轮对话打成 503；条数上限交给 sanitize 截断
 const dirty={reply:'收到',posture:'companion',askSwitch:false,records:[
   {summary:'长正文',text:'长'.repeat(401),domain:'study',tags:null},
   {summary:'',text:'没有摘要',domain:'mind',tags:[]},
@@ -134,8 +147,8 @@ assert.equal(parsed.memoryCandidates[0].kind,'fact');
 assert.deepEqual(parsed.quickReplies,[]);
 assert.equal(sanitizeChatResult(parsed,'别的话','companion',false).memoryCandidates.length,5);
 assert.deepEqual(chatResultSchema.parse({...raw,records:null,memoryCandidates:null,quickReplies:null}).records,[]);
-assert.throws(()=>chatResultSchema.parse({...raw,records:new Array(4).fill(raw.records[0])}));
-console.log('PASS 脏元素就地修正、记录超量仍致命、数组 null 补空');
+assert.equal(chatResultSchema.parse({...raw,records:new Array(4).fill(raw.records[0])}).records.length,4,'schema 不因条数超量整轮失败');
+console.log('PASS 脏元素就地修正、条数超量不失败、数组 null 补空');
 // generateChat：同一 endpoint 与请求参数、长度耗尽/非 JSON/额度耗尽的降级
 const oldFetch=globalThis.fetch;let seen;
 globalThis.fetch=async(u,options)=>{seen={u,body:JSON.parse(options.body),signal:options.signal};return Response.json({choices:[{message:{content:JSON.stringify({reply:'先说说卡在哪一步？',posture:'companion',askSwitch:false,records:[],memoryCandidates:[],quickReplies:[]})},finish_reason:'stop'}]});};
