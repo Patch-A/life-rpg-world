@@ -7,6 +7,7 @@ import {ApiError,readJSON,requestError} from '@/lib/api-client';
 import {type Action,type Game,type JournalEntry,availableXP,day,domains} from '@/lib/game';
 import {TIRED_LINE} from '@/lib/assistant-line';
 import {exportJournal} from '@/lib/export-journal';
+import {newId} from '@/lib/ids';
 import type {ChatResult} from '@/lib/ai/chat-contract';
 import './chat-room.css';
 
@@ -126,7 +127,7 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
       }else{
         const lastAssistant=[...state.chat].reverse().find(t=>t.role==='assistant');
         const prevPosture:Posture=lastAssistant?.posture==='counselor'?'counselor':'companion';
-        const response=await fetch('/api/chat',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(60000),body:JSON.stringify({requestId:crypto.randomUUID(),userText:text,prevPosture,switchConsent,consent:true,adult:true})});
+        const response=await fetch('/api/chat',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},signal:AbortSignal.timeout(60000),body:JSON.stringify({requestId:newId(),userText:text,prevPosture,switchConsent,consent:true,adult:true})});
         const {run:next}=await readJSON<{run:Run}>(response);
         if(!next||typeof next.id!=='string'||typeof next.reply?.reply!=='string')throw new Error('返回的数据不完整，本次对话未保存，请重试。');
         run=next;
