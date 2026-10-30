@@ -52,7 +52,7 @@ spec 没写、但真人使用时最先撞上的五种情况，各自在对应任
 
 | 文件 | 职责 |
 |---|---|
-| `site/lib/game.ts` | **改**：新增四个字段类型与默认值；新增 `chat-turn`、`claim-record`、`delete-journal`、`delete-memory` 四个 action |
+| `site/lib/game.ts` | **改**：新增四个字段类型与默认值；新增 `chat-turn`、`claim-record`、`delete-journal`、`delete-memory-fact` 四个 action |
 | `site/lib/ai/chat-contract.ts` | **新**：聊天契约的 zod schema 与类型 |
 | `site/lib/ai/deepseek.ts` | **改**：新增 `generateChat()`；两处调用改走 provider |
 | `site/lib/ai/provider.ts` | **新**：解析密钥/端点，按模型能力降级 |
@@ -185,7 +185,7 @@ git commit -am "feat(recordkeeper): chat-turn 写入对话与记录，幂等且�
 
 ---
 
-## Task 3: `claim-record` / `delete-journal` / `delete-memory`
+## Task 3: `claim-record` / `delete-journal` / `delete-memory-fact`
 
 **Files:**
 - Modify: `site/lib/game.ts`
@@ -200,7 +200,7 @@ git commit -am "feat(recordkeeper): chat-turn 写入对话与记录，幂等且�
     - 调 `recalculate(s)`（按现有规则，当日该领域未满 30 则 `xp=30`，满了就 `+0`，**不报错**）
     - `entry.status='claimed'`、`entry.logId=新 log id`
   - `{type:'delete-journal'; id:string}` → 删除该条；若 `status==='claimed'` 且 `logId` 存在，**同时把对应 Log 标记 `undone`**（`recalculate` 后）——防止删了记录却留着经验
-  - `{type:'delete-memory'; id?:string}` → 有 `id` 删一条，无 `id` 清空
+  - `{type:'delete-memory-fact'; id?:string}` → 有 `id` 删一条，无 `id` 清空
 
 - [ ] **Step 1: 写失败验证**
 
@@ -222,8 +222,8 @@ assert.equal(e.logs[1].undone,true);
 // 重复认领报错
 assert.throws(()=>reduceGame(c,{type:'claim-record',id:jid},new Date()),/已经认领/);
 // 记忆删除与清空
-assert.equal(reduceGame(merged,{type:'delete-memory',id:merged.memory[0].id},new Date()).memory.length,0);
-assert.equal(reduceGame(merged,{type:'delete-memory'},new Date()).memory.length,0);
+assert.equal(reduceGame(merged,{type:'delete-memory-fact',id:merged.memory[0].id},new Date()).memory.length,0);
+assert.equal(reduceGame(merged,{type:'delete-memory-fact'},new Date()).memory.length,0);
 console.log('PASS 认领成行动、经验上限、删除联动、记忆可删');
 ```
 
@@ -580,7 +580,7 @@ console.log('PASS 导出格式与空态');
 - Test: 无自动化；手动
 
 **Interfaces:**
-- Consumes: `{type:'delete-memory'; id?:string}`
+- Consumes: `{type:'delete-memory-fact'; id?:string}`
 - Produces: `<MemoryList facts={MemoryFact[]} act={...} busy={boolean} />` —— 列出全部事实，单条删 + 全部清空（清空前 `confirm`）
 
 `/about` 必改的一句话（现有承诺已不成立）：把"不会自动发送生日、照片、其他目标或储蓄账目"改为明说：
