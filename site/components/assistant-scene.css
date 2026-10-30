@@ -1,0 +1,66 @@
+/* 记录官场景：沿用 character-2d.css 的深紫底与 #eee6ff 文字，不引入新配色体系。 */
+.assistant-scene{
+  --scene-halo-wash:rgba(178,155,211,.10);
+  --scene-halo-core:rgba(178,155,211,.28);
+  --scene-rim:rgba(178,155,211,.20);
+  --scene-sink:0px;
+  position:relative;
+  isolation:isolate;
+  overflow:hidden;
+  width:100%;
+  min-width:0;
+  height:360px;
+  border:1px solid #a98ec538;
+  border-radius:24px;
+  color:#eee6ff;
+  background:radial-gradient(ellipse at 50% 42%,var(--scene-halo-wash),transparent 72%),linear-gradient(150deg,#201e36,#11182a);
+}
+/* 陪伴者：角色坐低 12px，光晕偏暖、更弱 */
+.assistant-scene[data-posture='companion']{
+  --scene-halo-wash:rgba(208,150,118,.09);
+  --scene-halo-core:rgba(208,150,118,.20);
+  --scene-rim:rgba(208,150,118,.16);
+  --scene-sink:12px;
+}
+/* 咨询师：站直，光晕偏冷、更亮 */
+.assistant-scene[data-posture='counselor']{
+  --scene-halo-wash:rgba(150,190,236,.16);
+  --scene-halo-core:rgba(150,190,236,.48);
+  --scene-rim:rgba(150,190,236,.32);
+  --scene-sink:0px;
+}
+.assistant-scene__sky{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 108%,#0b1120b8,transparent 66%);pointer-events:none}
+.assistant-scene__halo{position:absolute;top:42%;left:50%;width:224px;height:224px;transform:translate(-50%,-50%);border:1px solid var(--scene-rim);border-radius:50%;background:radial-gradient(circle,var(--scene-halo-wash),transparent 70%);box-shadow:0 0 0 26px var(--scene-halo-wash),0 0 46px var(--scene-halo-core);pointer-events:none;animation:assistant-halo 7s ease-in-out infinite}
+.assistant-scene__pedestal{position:absolute;bottom:64px;left:50%;width:188px;height:22px;transform:translateX(-50%);border:1px solid var(--scene-rim);border-radius:50%;background:var(--scene-halo-wash);box-shadow:0 0 24px var(--scene-halo-wash);pointer-events:none}
+/* 站位偏右，与首页居中站立的「你」区分开；占位立绘压灰压暗，避免像同一个人。 */
+.assistant-scene__actor{position:absolute;top:20px;right:10%;bottom:84px;left:18%;transform:translateY(var(--scene-sink));transition:transform .5s ease;pointer-events:none}
+.assistant-scene__art{display:block;width:100%;height:100%;filter:grayscale(.5) brightness(.9)}
+.assistant-scene__art .rpg-art>img{animation:assistant-idle 7.5s ease-in-out infinite;transform-origin:50% 92%}
+.assistant-scene__touch{position:absolute;inset:56px 8% 96px;z-index:2;border:0;border-radius:20px;background:transparent;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.assistant-scene__touch:focus-visible{outline:2px solid #d6baff;outline-offset:-4px}
+.assistant-scene__bubble{position:absolute;right:14px;bottom:14px;left:14px;z-index:3;max-height:132px;overflow:auto;padding:11px 14px;border:1px solid #c8afe055;border-radius:16px;background:#201c37f2;font-size:13px;line-height:1.75}
+.assistant-scene__bubble--quiet{border-color:transparent;background:transparent}
+.assistant-scene__line{margin:0}
+.assistant-scene__replay{position:absolute;top:12px;right:12px;z-index:4;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:44px;min-height:44px;padding:0 12px;border:1px solid #ae92d34d;border-radius:14px;background:#2b243fd9;color:#e8dcf8;font-size:12px;cursor:pointer}
+.assistant-scene__replay:hover{background:#443356;border-color:#c6a6ed}
+.assistant-scene__replay:focus-visible{outline:2px solid #d6baff;outline-offset:2px}
+.assistant-scene__replay[aria-pressed='true']{background:#443356;border-color:#c6a6ed;box-shadow:0 0 0 1px #c6a6ed55}
+@keyframes assistant-halo{0%,100%{opacity:.72;transform:translate(-50%,-50%) scale(.98)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.03)}}
+@keyframes assistant-idle{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@media(max-width:600px){
+  .assistant-scene{height:240px}
+  .assistant-scene__halo{top:40%;width:168px;height:168px}
+  .assistant-scene__pedestal{bottom:54px;width:148px;height:18px}
+  .assistant-scene__actor{top:12px;right:8%;bottom:72px;left:14%}
+  .assistant-scene__touch{inset:52px 8% 82px}
+  .assistant-scene__bubble{right:10px;bottom:10px;left:10px;max-height:96px;padding:9px 11px;font-size:12.5px;line-height:1.65}
+  .assistant-scene__replay{width:44px;padding:0}
+  .assistant-scene__replay-label{display:none}
+}
+/* 跟随站点「减少动态效果」设置（page.tsx 在 app-shell 上加 .reduced） */
+.reduced .assistant-scene__halo,.reduced .assistant-scene__art .rpg-art>img{animation:none}
+.reduced .assistant-scene__actor{transition:none}
+@media(prefers-reduced-motion:reduce){
+  .assistant-scene__halo,.assistant-scene__art .rpg-art>img{animation:none}
+  .assistant-scene__actor{transition:none}
+}
