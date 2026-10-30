@@ -32,3 +32,12 @@ const again={...turn,clientId:crypto.randomUUID(),memoryCandidates:[{text:'在�
 const merged=reduceGame(after,again,new Date());
 assert.equal(merged.memory.length,1);assert.equal(merged.memory[0].weight,2);
 console.log('PASS 聊天写入、幂等、记忆合并、不动经验值');
+// 模型字段异常（未知 domain、空 summary、空正文、空记忆）不阻断对话写入
+const bad={type:'chat-turn',clientId:crypto.randomUUID(),userText:'今天试了新工具',reply:'x'.repeat(2500),posture:'companion',records:[{summary:'记录一',text:'今天试了新工具',domain:'study',tags:[]},{summary:'',text:'摘要为空会被丢掉',domain:'mind',tags:[]},{summary:'正文为空会被丢掉',text:'',domain:'mind',tags:[]},{summary:'记录二',text:'有效的第二条',domain:'mind',tags:[]}],memoryCandidates:[{text:'',kind:'fact'},{text:'喜欢用命令行',kind:'preference'}]};
+const sanitized=reduceGame(start,bad,new Date());
+assert.equal(sanitized.chat.length,2);assert.equal(sanitized.chat[1].text.length,2000);
+assert.equal(sanitized.journal.length,2);
+assert.equal(sanitized.journal[0].domain,undefined);assert.equal(sanitized.journal[0].summary,'记录一');
+assert.equal(sanitized.journal[1].summary,'记录二');
+assert.equal(sanitized.memory.length,1);assert.equal(sanitized.memory[0].text,'喜欢用命令行');
+console.log('PASS 模型字段异常不阻断对话写入');

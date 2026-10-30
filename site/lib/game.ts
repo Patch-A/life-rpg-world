@@ -125,14 +125,14 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
  }
  if(a.type==='chat-turn'){
   const rid=str(a.clientId,80);if(s.chat.some(t=>t.id===rid))return s;
-  const userText=text(a.userText,1000),reply=text(a.reply,2000);if(!userText||!reply)throw Error('对话内容为空');
+  const userText=(typeof a.userText==='string'?a.userText.trim():'').slice(0,1000),reply=(typeof a.reply==='string'?a.reply.trim():'').slice(0,2000);if(!userText||!reply)throw Error('对话内容为空');
   const posture=a.posture==='counselor'?'counselor':'companion';
   s.chat.push({id:rid,date:today,at,role:'user',text:userText,posture},{id:rid+'-a',date:today,at,role:'assistant',text:reply,posture});if(s.chat.length>60)s.chat.splice(0,s.chat.length-60);
   const records=Array.isArray(a.records)?a.records:[];
-  for(const raw of records){const r=raw as Record<string,unknown>;const tags=Array.isArray(r.tags)?[...new Set(r.tags.filter(t=>typeof t==='string'&&t.trim()).map(t=>(t as string).trim().slice(0,20)))].slice(0,20):[];s.journal.push({id:id(),date:today,at,text:(typeof r.text==='string'?r.text.trim():'').slice(0,400),summary:str(r.summary,200),...(r.domain?{domain:domain(r.domain)}:{}),tags,posture,runId:rid,status:'pending'});}
+  for(const raw of records){const r=raw as Record<string,unknown>;const summary=(typeof r.summary==='string'?r.summary.trim():'').slice(0,200),body=(typeof r.text==='string'?r.text.trim():'').slice(0,400);if(!summary||!body)continue;const tags=Array.isArray(r.tags)?[...new Set(r.tags.filter(t=>typeof t==='string'&&t.trim()).map(t=>(t as string).trim().slice(0,20)))].slice(0,20):[];s.journal.push({id:id(),date:today,at,text:body,summary,...(domains.some(d=>d.id===r.domain)?{domain:r.domain as Domain}:{}),tags,posture,runId:rid,status:'pending'});}
   if(s.journal.length>500)s.journal.splice(0,s.journal.length-500);
   const candidates=Array.isArray(a.memoryCandidates)?a.memoryCandidates:[];
-  for(const raw of candidates){const c=raw as Record<string,unknown>;const fact=str(c.text,200);const kind=c.kind==='preference'?'preference':c.kind==='situation'?'situation':'fact';const existing=s.memory.find(m=>m.text===fact);if(existing){existing.weight+=1;existing.lastSeen=at;}else s.memory.push({id:id(),text:fact,kind,firstSeen:at,lastSeen:at,weight:1});}
+  for(const raw of candidates){const c=raw as Record<string,unknown>;const fact=(typeof c.text==='string'?c.text.trim():'').slice(0,200);if(!fact)continue;const kind=c.kind==='preference'?'preference':c.kind==='situation'?'situation':'fact';const existing=s.memory.find(m=>m.text===fact);if(existing){existing.weight+=1;existing.lastSeen=at;}else s.memory.push({id:id(),text:fact,kind,firstSeen:at,lastSeen:at,weight:1});}
   while(s.memory.length>40)s.memory.splice(s.memory.reduce((b,m,i,arr)=>m.weight<arr[b].weight||(m.weight===arr[b].weight&&m.lastSeen<arr[b].lastSeen)?i:b,0),1);
   return s;
  }
