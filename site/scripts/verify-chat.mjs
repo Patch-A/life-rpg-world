@@ -88,7 +88,8 @@ console.log('PASS 认领成行动、经验上限、删除联动、记忆可删')
 // 聊天契约：防编造、姿态升级需同意、降级放行、契约限流
 const agentContract=url(source('lib/agent-contract.ts').replace("from 'zod'",`from '${import.meta.resolve('zod')}'`));
 const chatContract=url(source('lib/ai/chat-contract.ts').replaceAll("from '@/lib/game'",`from '${game}'`).replace("from 'zod'",`from '${import.meta.resolve('zod')}'`));
-const provider=url(source('lib/ai/deepseek.ts').replace("from '../agent-contract'",`from '${agentContract}'`).replace("from './chat-contract'",`from '${chatContract}'`));
+const aiProvider=url(source('lib/ai/provider.ts'));
+const provider=url(source('lib/ai/deepseek.ts').replace("from '../agent-contract'",`from '${agentContract}'`).replace("from './chat-contract'",`from '${chatContract}'`).replace("from './provider'",`from '${aiProvider}'`));
 const {chatResultSchema,sanitizeChatResult}=await import(chatContract);
 const {generateChat,CHAT_TIMEOUT_MS}=await import(provider);
 const userText='今天看完了第三章，卡在并发';
@@ -294,8 +295,8 @@ const chatDb=wrapDb(chatSqlite);
 globalThis.__chatDB=chatDb;
 globalThis.__chatEnv={DEEPSEEK_API_KEY:'isolated-test',DEEPSEEK_MODEL:'test-model',AI_USER_DAILY_LIMIT:'10',AI_SITE_DAILY_LIMIT:'100'};
 const guardUrl=url(source('lib/request-guard.ts')),identityUrl=url(source('lib/identity.ts'));
-const chatRoute=()=>url(source('app/api/chat/route.ts').replace("import { env } from 'cloudflare:workers';",'const env=globalThis.__chatEnv;').replace("import { database } from '@/db';",'const database=()=>globalThis.__chatDB;').replaceAll("from '@/lib/game'",`from '${game}'`).replaceAll("from '@/lib/birthday'",`from '${birthday}'`).replaceAll("from '@/lib/identity'",`from '${identityUrl}'`).replaceAll("from '@/lib/ai/deepseek'",`from '${provider}'`).replaceAll("from '@/lib/ai/chat-contract'",`from '${chatContract}'`).replaceAll("from '@/lib/chat-context'",`from '${chatContext}'`).replaceAll("from '@/lib/request-guard'",`from '${guardUrl}'`).replaceAll("from 'zod'",`from '${import.meta.resolve('zod')}'`));
-const agentRouteUrl=()=>url(source('app/api/agent/route.ts').replace("import { env } from 'cloudflare:workers';",'const env=globalThis.__chatEnv;').replace("import { database } from '@/db';",'const database=()=>globalThis.__chatDB;').replaceAll("from '@/lib/game'",`from '${game}'`).replaceAll("from '@/lib/birthday'",`from '${birthday}'`).replaceAll("from '@/lib/identity'",`from '${identityUrl}'`).replaceAll("from '@/lib/agent-contract'",`from '${agentContract}'`).replaceAll("from '@/lib/ai/deepseek'",`from '${provider}'`).replaceAll("from '@/lib/request-guard'",`from '${guardUrl}'`).replaceAll("from 'zod'",`from '${import.meta.resolve('zod')}'`));
+const chatRoute=()=>url(source('app/api/chat/route.ts').replace("import { env } from 'cloudflare:workers';",'const env=globalThis.__chatEnv;').replace("import { database } from '@/db';",'const database=()=>globalThis.__chatDB;').replaceAll("from '@/lib/game'",`from '${game}'`).replaceAll("from '@/lib/birthday'",`from '${birthday}'`).replaceAll("from '@/lib/identity'",`from '${identityUrl}'`).replaceAll("from '@/lib/ai/deepseek'",`from '${provider}'`).replaceAll("from '@/lib/ai/provider'",`from '${aiProvider}'`).replaceAll("from '@/lib/ai/chat-contract'",`from '${chatContract}'`).replaceAll("from '@/lib/chat-context'",`from '${chatContext}'`).replaceAll("from '@/lib/request-guard'",`from '${guardUrl}'`).replaceAll("from 'zod'",`from '${import.meta.resolve('zod')}'`));
+const agentRouteUrl=()=>url(source('app/api/agent/route.ts').replace("import { env } from 'cloudflare:workers';",'const env=globalThis.__chatEnv;').replace("import { database } from '@/db';",'const database=()=>globalThis.__chatDB;').replaceAll("from '@/lib/game'",`from '${game}'`).replaceAll("from '@/lib/birthday'",`from '${birthday}'`).replaceAll("from '@/lib/identity'",`from '${identityUrl}'`).replaceAll("from '@/lib/agent-contract'",`from '${agentContract}'`).replaceAll("from '@/lib/ai/deepseek'",`from '${provider}'`).replaceAll("from '@/lib/ai/provider'",`from '${aiProvider}'`).replaceAll("from '@/lib/request-guard'",`from '${guardUrl}'`).replaceAll("from 'zod'",`from '${import.meta.resolve('zod')}'`));
 const chatSaved=JSON.stringify(reduceGame(blank(),{type:'onboard',name:'测试',gender:'male',focus:'mind'},new Date()));
 const baseState=JSON.parse(chatSaved),atNow=new Date().toISOString(),todayNow=gameDay();
 const saveWith=turns=>JSON.stringify({...baseState,chat:turns});
@@ -461,3 +462,73 @@ try{
  freshSqlite.close();globalThis.__chatDB=chatDb;
  console.log('PASS 聊天路由：鉴权、同意校验、姿态打回、防编造、切换按钮过滤、双向额度隔离、18+、停用开关、幂等与失败落库');
 }finally{globalThis.fetch=chatOldFetch;process.env.NODE_ENV=oldNodeEnv;delete globalThis.__chatDB;delete globalThis.__chatEnv;chatSqlite.close();}
+// ---- 自带模型：回落链、端点可换、能力降级、围栏剥离 ----
+const {resolveProvider,buildChatRequest,stripJsonFences,postWithFallback}=await import(aiProvider);
+// 回落链：AI_API_KEY 优先，旧名 DEEPSEEK_API_KEY 仍可用；都没配返回 null
+assert.equal(resolveProvider({DEEPSEEK_API_KEY:'k'}).key,'k');
+assert.equal(resolveProvider({AI_API_KEY:'a',DEEPSEEK_API_KEY:'d'}).key,'a');
+assert.equal(resolveProvider({AI_API_KEY:'  '}),null,'纯空白 key 视为没配');
+assert.equal(resolveProvider({}),null);
+// 端点与能力：非 DeepSeek 不发 thinking，DeepSeek 才发
+const open=resolveProvider({AI_API_KEY:'k',AI_BASE_URL:'http://localhost:11434/'});
+assert.equal(open.baseUrl,'http://localhost:11434');
+assert.equal(open.isDeepSeek,false);
+assert.equal('thinking' in buildChatRequest(open,'s',{}).body,false,'非 DeepSeek 不发送 thinking');
+const ds=resolveProvider({DEEPSEEK_API_KEY:'k'});
+assert.equal(ds.baseUrl,'https://api.deepseek.com');
+assert.equal(ds.model,'deepseek-chat');
+assert.equal(buildChatRequest(ds,'s',{}).url,'https://api.deepseek.com/chat/completions');
+assert.equal(buildChatRequest(ds,'s',{}).body.thinking.type,'disabled');
+assert.equal(buildChatRequest(open,'s',{}).url,'http://localhost:11434/chat/completions');
+assert.equal(resolveProvider({AI_API_KEY:'k',AI_MODEL:'qwen3'}).model,'qwen3');
+assert.equal(resolveProvider({AI_API_KEY:'k',AI_MODEL:'qwen3',DEEPSEEK_MODEL:'old'}).model,'qwen3','AI_MODEL 优先于旧名');
+// 剥围栏
+assert.equal(stripJsonFences('```json\n{"a":1}\n```'),'{"a":1}');
+assert.equal(stripJsonFences('{"a":1}'),'{"a":1}');
+console.log('PASS 自带模型：回落链、端点可换、能力降级、围栏剥离');
+// 端点 400 且点名 response_format 时去掉重试一次；其他 400 原样返回
+let fsCalls=[];
+const fsFetch=async(u,init)=>{fsCalls.push({u,body:JSON.parse(init.body),auth:init.headers.Authorization});return fsCalls.length===1?new Response('unknown field response_format',{status:400}):Response.json({ok:1});};
+const retried=await postWithFallback(open,buildChatRequest(open,'s',{}),fsFetch);
+assert.equal(retried.status,200);assert.equal(fsCalls.length,2);
+assert.equal('response_format' in fsCalls[0].body,true);assert.equal('response_format' in fsCalls[1].body,false,'重试必须去掉 response_format');
+assert.equal(fsCalls[1].u,'http://localhost:11434/chat/completions');assert.equal(fsCalls[1].auth,'Bearer k');
+fsCalls=[];
+const other400=async(u,init)=>{fsCalls.push(JSON.parse(init.body));return new Response('bad temperature',{status:400});};
+assert.equal((await postWithFallback(open,buildChatRequest(open,'s',{}),other400)).status,400);
+assert.equal(fsCalls.length,1,'与 response_format 无关的 400 不重试');
+// 端到端：generateChat 打到非 DeepSeek 端点，URL 跟 baseUrl 走且不带 thinking
+const oldChatFetch=globalThis.fetch;let openSeen;
+globalThis.fetch=async(u,options)=>{openSeen={u,body:JSON.parse(options.body)};return Response.json({choices:[{message:{content:JSON.stringify({reply:'在听。',posture:'companion',askSwitch:false,records:[],memoryCandidates:[],quickReplies:[]})},finish_reason:'stop'}]});};
+try{
+ await generateChat('local-key','qwen3',{},'http://localhost:11434/');
+ assert.equal(openSeen.u,'http://localhost:11434/chat/completions');
+ assert.equal('thinking' in openSeen.body,false,'非 DeepSeek 端点不得发送 thinking');
+ assert.equal(openSeen.body.model,'qwen3');
+}finally{globalThis.fetch=oldChatFetch;}
+console.log('PASS 非 DeepSeek 端点：response_format 自动降级、URL 与 thinking 随端点切换');
+// ---- 路由层：只配 AI_API_KEY 也能聊；AI_BASE_URL 换端点后请求跟着走 ----
+{
+ const prevEnv=process.env.NODE_ENV;process.env.NODE_ENV='production';
+ const byokSqlite=new DatabaseSync(':memory:');
+ for(const f of readdirSync(new URL('../drizzle/',import.meta.url)).filter(f=>f.endsWith('.sql')).sort())byokSqlite.exec(source('drizzle/'+f));
+ byokSqlite.prepare('INSERT INTO saves(user_id,data,revision) VALUES(?,?,0)').run('gina',chatSaved);
+ globalThis.__chatDB=wrapDb(byokSqlite);
+ globalThis.__chatEnv={AI_API_KEY:'byok-key',AI_MODEL:'own-model',AI_BASE_URL:'http://localhost:11434/'};
+ const byokOldFetch=globalThis.fetch;let byokSeen;
+ globalThis.fetch=async(u,options)=>{byokSeen={u,body:JSON.parse(options.body),auth:options.headers.Authorization};return Response.json({choices:[{message:{content:JSON.stringify({reply:'在听。',posture:'companion',askSwitch:false,records:[],memoryCandidates:[],quickReplies:[]})},finish_reason:'stop'}]});};
+ try{
+  // 路由把 env 在模块加载时绑定成常量，这里用带 fragment 的新模块实例，确保读到本次的 __chatEnv
+  const {POST}=await import(chatRoute()+'#byok');
+  const byokRes=await POST(chatReq('gina',{requestId:crypto.randomUUID(),userText,prevPosture:'companion',switchConsent:false,consent:true,adult:true}));
+  assert.equal(byokRes.status,200,'只配 AI_API_KEY 就能聊天，不依赖旧名');
+  assert.equal(byokSeen.u,'http://localhost:11434/chat/completions','AI_BASE_URL 决定请求端点');
+  assert.equal(byokSeen.auth,'Bearer byok-key');
+  assert.equal(byokSeen.body.model,'own-model');assert.equal('thinking' in byokSeen.body,false,'自建端点不发送 thinking');
+  delete globalThis.__chatEnv.AI_API_KEY;
+  const empty=await POST(chatReq('gina',{requestId:crypto.randomUUID(),userText,prevPosture:'companion',switchConsent:false,consent:true,adult:true}));
+  assert.equal(empty.status,503,'AI_API_KEY 与 DEEPSEEK_API_KEY 都没配时 503');
+  assert.equal((await empty.json()).error,'还没有配置模型。把 API Key 填进环境变量后就能聊了，手动记录不受影响。');
+ }finally{globalThis.fetch=byokOldFetch;process.env.NODE_ENV=prevEnv;delete globalThis.__chatDB;delete globalThis.__chatEnv;byokSqlite.close();}
+ console.log('PASS 路由层自带模型：AI_API_KEY 单独可用、AI_BASE_URL 生效、都没配时 503');
+}

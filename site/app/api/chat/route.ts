@@ -5,6 +5,7 @@ import { authenticatedUser } from '@/lib/identity';
 import { normalizeGame,day,type Game } from '@/lib/game';
 import { ageAt } from '@/lib/birthday';
 import { generateChat,ModelError } from '@/lib/ai/deepseek';
+import { resolveProvider } from '@/lib/ai/provider';
 import { sanitizeChatResult,type ChatResult } from '@/lib/ai/chat-contract';
 import { buildChatContext } from '@/lib/chat-context';
 import { boundedBody,noStore,RequestError } from '@/lib/request-guard';
@@ -20,7 +21,7 @@ export async function POST(req:Request){
  let runId='';try{
  const raw=await boundedBody(req);const checked=input.safeParse(raw);if(!checked.success)throw new RequestError('请填写要说的话，并确认成年试用与AI数据说明');const a=checked.data;
  if(env.AI_ENABLED==='false')return noStore({error:'AI服务尚未启用，请使用手动记录；也可以从反馈入口联系维护者。'},503);
- if(!env.DEEPSEEK_API_KEY)return noStore({error:NO_MODEL},503);
+ const provider=resolveProvider(env);if(!provider)return noStore({error:NO_MODEL},503);
  const db=database();const saved=await db.prepare('SELECT data FROM saves WHERE user_id=?').bind(uid).first<{data:string}>();if(!saved)throw new RequestError('请先创建角色');const state=normalizeGame(JSON.parse(saved.data) as Game);if(!state.profile)throw new RequestError('请先创建角色');
  if(state.profile.birth&&ageAt(state.profile.birth,day())<18)throw new RequestError('当前AI试用面向成年人；手动记录仍可使用',403);
  const previous=await db.prepare("SELECT user_id,result,status FROM agent_runs WHERE id=? AND goal_id='__chat__' AND created_at>=?").bind(a.requestId,cutoff()).first<{user_id:string;result:string;status:string}>();if(previous){if(previous.user_id!==uid)return noStore({error:'请求标识无效'},409);return previous.status==='complete'?noStore({run:JSON.parse(previous.result)}):noStore({error:'这次对话已经处理，请查看已有回复或发起一次新请求。'},409);}
@@ -35,10 +36,9 @@ export async function POST(req:Request){
  // One SQL insert reserves both per-user and site chat quotas atomically, including in-flight calls.
  const createdAt=new Date().toISOString();const reservation=await db.prepare("INSERT INTO agent_runs(id,user_id,date,goal_id,status,result,created_at) SELECT ?,?,?,'__chat__','pending','',? WHERE (SELECT COUNT(*) FROM agent_runs WHERE user_id=? AND date=? AND goal_id='__chat__')<? AND (SELECT COUNT(*) FROM agent_runs WHERE date=? AND goal_id='__chat__')<? AND NOT EXISTS(SELECT 1 FROM agent_runs WHERE user_id=? AND goal_id='__chat__' AND status='pending' AND created_at>?)").bind(a.requestId,uid,day(),createdAt,uid,day(),limit(env.AI_CHAT_USER_DAILY_LIMIT,50),day(),limit(env.AI_CHAT_SITE_DAILY_LIMIT,500),uid,new Date(Date.now()-90000).toISOString()).run();
  if(!reservation.meta.changes)return noStore({error:'已有回复正在生成，或今日聊天次数已用完。请稍后再试，手动记录仍可使用。'},429);runId=a.requestId;
- const model=env.DEEPSEEK_MODEL||'deepseek-chat';
  const context=buildChatContext(state,{userText:a.userText,prevPosture,switchConsent});
  // generateChat only parses the schema; sanitize is what enforces "records must quote the user" and "no counselor upgrade without a nod".
- const generated=await generateChat(env.DEEPSEEK_API_KEY,model,context);
+ const generated=await generateChat(provider.key,provider.model,context,provider.baseUrl);
  const sanitized=sanitizeChatResult(generated,a.userText,prevPosture,switchConsent);
  // askSwitch=false means we never asked; drop any stale "switch" button the model volunteered.
  const reply:ChatResult=sanitized.askSwitch?sanitized:{...sanitized,quickReplies:sanitized.quickReplies.filter(q=>q.kind!=='accept-switch')};

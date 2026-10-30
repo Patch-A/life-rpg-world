@@ -13,6 +13,23 @@
 - /demo 是固定虚构演示，不调用模型、不写私人存档；/about 说明数据、费用限制、导出与删除路径。
 - 原生日、纪念、照片、储蓄、奖励去重与旧存档兼容保留。男角色使用男装，女角色使用女装；原README中任意混穿的说法已过期。
 
+## 自己部署
+
+这个项目不绑定某个模型服务：用自己的 API Key、指向任意 OpenAI 兼容端点即可。
+
+    git clone <仓库地址> life-rpg
+    cd life-rpg/site
+    corepack pnpm install
+    cp .env.example .env.local     # 然后把你的 Key 填进 AI_API_KEY
+    npm run dev
+
+- `AI_API_KEY`：必填，你的模型服务 Key，不要提交进仓库。
+- `AI_MODEL`：模型名，默认 `deepseek-chat`。
+- `AI_BASE_URL`：默认 `https://api.deepseek.com`。换本地或其他服务时改成对方地址，例如 Ollama 的 `http://localhost:11434`，此时模型一般填 `qwen3`、`llama3.1` 之类。
+- `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL`：旧名，仅为兼容已有部署保留；同时配置时 `AI_*` 优先。
+
+`AI_BASE_URL` 指向非 DeepSeek 端点时，请求不再发送 DeepSeek 专有的 `thinking` 字段。本地模型（Ollama、vLLM、LM Studio 等）常常不支持 `response_format`，服务端在收到点名该字段的 400 时会自动去掉它重试一次，不需要手工改代码。能否稳定返回结构化 JSON 取决于所选模型本身。
+
 ## 本地运行
 
 要求Node.js >=22.13.0；init-local-db.mjs使用Node内置SQLite，需要支持该模块的版本。pnpm版本以package.json为准，保持锁文件。
