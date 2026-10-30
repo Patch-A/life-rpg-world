@@ -323,7 +323,7 @@ git commit -m "feat(recordkeeper): 聊天契约、模型调用与服务端强校
 {
   userText: string,
   prevPosture: 'companion'|'counselor',
-  recentChat: {role:'user'|'assistant', text:string}[],   // 最近 20 轮
+  recentChat: {role:'user'|'assistant', text:string}[],   // 最近 40 条（约 20 轮）
   memory: {text:string, kind:string}[],                   // 全部，最多 40
   goals: {title:string, domain:string, progress:number, target:number, unit:string}[],
   recentLogs: {date:string, title:string, domain:string, value:number, unit:string}[], // 最近 20 条
@@ -349,7 +349,7 @@ assert.ok(ctx.recentChat.length>0);
 assert.ok(ctx.memory.length>=1);
 // 超量裁剪
 const many={...c,chat:new Array(100).fill(c.chat[0])};
-assert.ok(buildChatContext(many,{userText:'x',prevPosture:'companion',switchConsent:false}).recentChat.length<=20);
+assert.ok(buildChatContext(many,{userText:'x',prevPosture:'companion',switchConsent:false}).recentChat.length<=40);
 console.log('PASS 上下文不含照片与生日、超量裁剪');
 ```
 
