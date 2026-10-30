@@ -143,6 +143,13 @@ assert.ok(metaFs>=13,`手机记录元信息必须 ≥13px，实际 ${metaFs}px`)
 const sceneMobileCss=mediaBlocks(source('components/assistant-scene.css'),600);
 const lineFs=readPx(sceneMobileCss,'.assistant-scene__bubble','font-size','记录官的话');
 assert.ok(lineFs>=13.5,`手机上记录官的话必须 ≥13.5px，实际 ${lineFs}px`);
+// 台词超过 3 行时，原来 max-height+overflow:auto 会把句子切一半、还给一条滚动条；
+// 完整台词本来就出现在下方聊天流里，这里只该是预览，用省略号收尾。
+assert.ok(!/\.assistant-scene__bubble\{[^}]*overflow:\s*auto/.test(sceneMobileCss),'记录官气泡不得在手机上做内部滚动：会切半句并冒出滚动条');
+const lineClamp=[...sceneMobileCss.matchAll(/\.assistant-scene__line\{([^}]*)\}/g)].map(m=>m[1])[0];
+assert.ok(lineClamp,'手机断点必须给记录官台词加截断规则');
+assert.ok(/-webkit-line-clamp:\s*[1-4]/.test(lineClamp),`台词截断必须限定在 1–4 行内，实际「${lineClamp}」`);
+assert.ok(lineClamp.includes('overflow:hidden'),'台词截断必须配合 overflow:hidden，否则省略号不出现');
 // globals 里的标签类：手机断点里必须抬到 12.5px 以上。
 // 成长页这几条是中文正文（「认知领域」「已点亮」「每段旅程都始于第一步」「0/5 次」），
 // 不是装饰行；.eyebrow 在别的页面是英文装饰，但成长页往里放中文，所以一并卡下限。
