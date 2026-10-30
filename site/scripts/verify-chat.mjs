@@ -25,6 +25,11 @@ assert.equal(after.journal.length,1);assert.equal(after.journal[0].status,'pendi
 assert.equal(after.journal[0].text,'今天看完了第三章');
 assert.equal(after.memory.length,1);assert.equal(after.memory[0].weight,1);
 assert.equal(xp(after),xp(start),'聊天不应改变经验值');
+// 同意标记必须随 chat-turn 一起落库（/api/chat 已用 z.literal(true) 校验 consent 与 adult）。
+// 曾经拆成一次额外的 settings act，它拿着本次渲染的旧 revision 去写，必然 409：
+// 同意永远存不上，用户每次对话都看到两条红色冲突条、每次都要重勾同意。
+assert.equal(start.settings.chatConsent,false,'前置：尚未同意');
+assert.equal(after.settings.chatConsent,true,'chat-turn 必须自己记下同意，不能依赖第二次写入');
 // 幂等：同一个 clientId 重复提交不重复写
 assert.equal(reduceGame(after,turn,new Date()).chat.length,2);
 // 记忆合并：同样的话再说一次，weight 变 2 而不是新增一条
@@ -857,7 +862,11 @@ assert.ok((chatRoom.match(/chat-room__consent-item/g)||[]).length>=2,'同意行�
 assert.ok(/disabled=\{[^}]*canSend[^}]*\}/.test(chatRoom),'发送按钮必须真的受 canSend 约束');
 // 同意行必须在 !consentDone 时才渲染
 assert.ok(/!consentDone&&/.test(chatRoom),'同意行必须只在未同意时出现');
-assert.ok(chatRoom.includes('state.settings.chatConsent')&&chatRoom.includes('chatConsent:true'),'同意门槛必须读存档并写回存档');
+assert.ok(chatRoom.includes('state.settings.chatConsent'),'同意门槛必须读存档里的同意标记');
+// 同意标记的写入属于 chat-turn（见上面的 reducer 断言）。这里若再出现独立的 settings 写入，
+// 就会在 chat-turn 刚推进版本号之后拿旧 revision 去写 409，用户每次对话都看到两条红色冲突条。
+assert.equal(chatRoom.includes('chatConsent:true'),false,'同意标记不得由第二个 act 写入：会拿旧 revision 撞 409');
+assert.equal(/void\s+act\(/.test(chatRoom),false,'不得出现 fire-and-forget 的 act：它会用在本次渲染里已经过期的 revision 落库');
 // 同意文案必须如实披露实际发送的四类内容（chat-context 会带 recentChat 与 memory）
 assert.ok(chatRoom.includes('对话原文（最近 40 条）'),'同意文案必须披露对话原文发送');
 assert.ok(chatRoom.includes('长期记忆（最多 40 条）'),'同意文案必须披露长期记忆发送');
@@ -952,5 +961,15 @@ assert.ok(mainSentence.includes('同意'),'第二条勾选框必须以「同意�
 assert.ok(mainSentence.includes('对话')&&mainSentence.includes('记录'),'同意主句必须说明对话和记录都会发送给模型');
 assert.equal(/照片|生日|纪念/.test(mainSentence),false,'披露清单已收进折叠区，不占主句');
 assert.ok(consentBlock.indexOf('照片、生日、人生纪念不会发送')>consentBlock.indexOf('<details'),'不发送的照片、生日、人生纪念仍须在折叠区内保留');
+// globals.css 的 `input{min-height:48px}`（输入框触控高度）会盖过 height，把勾选框撑成 18×48、
+// 每行 49px 高，同意行凭空高出约 100px，正撞 spec §6.13「首屏不被打断」。
+// 已在浏览器里量到过：修复前 18×48，修复后 18×18。
+const chatCss=source('components/chat-room.css');
+const cssStart=chatCss.indexOf('.chat-room__consent-item input');
+assert.ok(cssStart>-1,'chat-room.css 必须存在同意行勾选框规则');
+const cssCut=chatCss.slice(cssStart);
+const cssBlock=cssCut.slice(0,cssCut.indexOf('}'));
+assert.ok(cssBlock.includes('width:18px'),'同意行勾选框必须有明确的 18px 尺寸规则');
+assert.ok(/min-height:\s*18px/.test(cssBlock),'勾选框必须覆盖 globals.css 的 min-height:48px，否则被撑成 18×48');
 console.log('PASS 同意行主句说清对话与记录、清单进默认收起的 details');
 

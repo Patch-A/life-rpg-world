@@ -162,9 +162,8 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
     onLine(done.reply.reply);
     onPosture(done.reply.posture);
     if(!consentDone){
-      // 同意标记只写一次；写失败也不影响本次对话，下次会再问。
+      // 同意标记由 chat-turn 自己落库（见 lib/game.ts），这里只更新本次会话的界面状态。
       setConsentGranted(true);
-      void act({type:'settings',chatConsent:true});
     }
   }
 

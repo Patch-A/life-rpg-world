@@ -126,7 +126,10 @@
 .chat-room__consent-item input{
   flex:none;
   width:18px;
+  /* globals.css 里那条全局 input 的 min-height:48px 是为输入框留的触控高度，
+     会盖过这里的 height，把勾选框撑成 18×48、每行 49px 高。同意行只该占两行字的高度。 */
   height:18px;
+  min-height:18px;
   margin:1px 0 0;
   accent-color:#8f6dd8;
 }

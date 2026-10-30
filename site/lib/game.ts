@@ -125,6 +125,10 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
  }
  if(a.type==='chat-turn'){
   const rid=str(a.clientId,80);if(s.chat.some(t=>t.id===rid))return s;
+  // 同意标记随对话一起落库：/api/chat 已用 z.literal(true) 校验过 consent 与 adult，
+  // 一条写进来的 chat-turn 本身就是「同意过」的证据。拆成第二个 act 会拿着这一次渲染的旧
+  // revision 去写，必然撞 409，结果是同意永远存不上、每次对话都弹两条红条。
+  s.settings.chatConsent=true;
   const userText=(typeof a.userText==='string'?a.userText.trim():'').slice(0,1000),reply=(typeof a.reply==='string'?a.reply.trim():'').slice(0,2000);if(!userText||!reply)throw Error('对话内容为空');
   const posture=a.posture==='counselor'?'counselor':'companion',askSwitch=a.askSwitch===true;
   s.chat.push({id:rid,date:today,at,role:'user',text:userText,posture},{id:rid+'-a',date:today,at,role:'assistant',text:reply,posture,askSwitch});if(s.chat.length>60)s.chat.splice(0,s.chat.length-60);
