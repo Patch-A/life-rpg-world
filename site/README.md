@@ -20,12 +20,14 @@
     git clone <仓库地址> life-rpg
     cd life-rpg/site
     corepack pnpm install
-    cp .env.example .env.local     # 然后把你的 Key 填进 AI_API_KEY
+    cp .env.example .dev.vars     # 然后把你的 Key 填进 AI_API_KEY
     npm run dev
 
+本地开发读的是 `.dev.vars`（该文件已被 Git 忽略）。若目录里已有 `.dev.vars` 就直接改它，不要新建 `.env.local`：Wrangler 在 `.dev.vars` 存在时不读 `.env*`，新写进 `.env.local` 的 Key 会静默不生效，应用一直返回 503。
+
 - `AI_API_KEY`：必填，你的模型服务 Key，不要提交进仓库。
-- `AI_MODEL`：模型名。留空则按调用方默认（记录官 `deepseek-chat`、行动助手 `deepseek-flash`）。
-- `AI_BASE_URL`：默认 `https://api.deepseek.com`。换本地或其他服务时改成对方地址，例如 Ollama 的 `http://localhost:11434`，此时模型一般填 `qwen3`、`llama3.1` 之类。
+- `AI_MODEL`：模型名。留空则按调用方默认（记录官 `deepseek-chat`、行动助手 `deepseek-flash`）。用非 DeepSeek 端点时**必须**填本地模型名（如 `qwen3`、`llama3.1`），否则会拿 deepseek 的模型名去请求而报错。
+- `AI_BASE_URL`：默认 `https://api.deepseek.com`。换本地或其他服务时改成对方地址，例如 Ollama 的 `http://localhost:11434/v1`。base URL 需要包含 `/v1`（DeepSeek 例外，它的根路径本身就是完整前缀）。
 - `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL`：旧名，仅为兼容已有部署保留；同时配置时 `AI_*` 优先。
 - `AI_ENABLED` 与各 `AI_*_DAILY_LIMIT`：运维开关与额度，留空即用代码默认（每日：行动助手每用户 10 / 全站 100，记录官每用户 50 / 全站 500），详见 `.env.example`。
 
@@ -49,7 +51,7 @@ Windows本轮Wrangler迁移子进程崩溃，预览服务器可运行。首次�
 
 ## 模型与运行配置
 
-生产通过Sites环境变量配置：DEEPSEEK_API_KEY必须为secret；DEEPSEEK_MODEL可配置，默认deepseek-flash；AI_ENABLED=false关闭调用；默认每用户每日10次、全站每日100次。失败尝试计入次数，输入、输出、并发和超时均有限制。环境变量变更需重新部署生效。
+生产通过Sites环境变量配置：AI_API_KEY必须为secret（DEEPSEEK_API_KEY为旧名，仅为兼容已有部署保留，同时配置时AI_*优先）；模型名默认按调用方，行动助手deepseek-flash、记录官deepseek-chat，可用AI_MODEL覆盖；AI_ENABLED=false关闭调用；默认额度行动助手每用户每日10次、全站每日100次，记录官每用户每日50次、全站每日500次。失败尝试计入次数，输入、输出、并发和超时均有限制。环境变量变更需重新部署生效。
 
 草案读取窗口30天、反馈读取窗口90天，过期内容随请求限量清理；已确认记录在私人存档中保存。API只从可信Sites身份读取用户数据，不能直接信任公开客户端身份头或JSON。迁出Sites时需要独立可信认证适配。
 
