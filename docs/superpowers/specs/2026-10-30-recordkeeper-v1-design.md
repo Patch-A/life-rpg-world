@@ -245,6 +245,7 @@ type Game = {
 服务端强校验（防模型跑偏）：
 
 - **姿态升级必须用户点头。** 请求里带 `switchConsent: boolean`，前端只在用户点了 `kind: 'accept-switch'` 的按钮时才置 `true`。服务端校验：`posture === 'counselor' && 上一轮是 companion && !switchConsent` → **强制改回 companion**，并把 `askSwitch` 置为 `true`，让模型重新问一次。不靠对用户文本做启发式匹配
+- **姿态的真相在存档里，不在请求里。** 服务端**忽略**请求体的 `prevPosture`，改为从 `state.chat` 最后一个 assistant 轮推算；`ChatTurn` 增加可选字段 `askSwitch`，`switchConsent` 只有在「上一轮确实问过（`askSwitch === true`）」时才认。理由：若信任请求体，客户端谎报一次就能在首轮进入咨询师，同意机制形同虚设——而它存在的意义正是"猜错成咨询师＝在低落时给人布置作业"。已知残余：「上一轮问过」这个事实写在用户自己的存档里，用户可通过 `POST /api/game` 自行写入。接受该风险（自损、不涉他人与额度）；若将来把咨询师姿态视为合规同意边界，需改为服务端权威的对话历史
 - 降级（咨询师 → 陪伴者）自动放行，服务端不拦
 - `records[].text` 必须是用户本次原话的子串。不是就丢弃，**防止编造你说过的话**
 - `records` 最多 3 条，`quickReplies` 最多 3 条
