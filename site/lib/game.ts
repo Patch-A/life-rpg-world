@@ -137,7 +137,8 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
   return s;
  }
  if(a.type==='claim-record'){
-  const entry=s.journal.find(j=>j.id===a.id&&j.status==='pending');if(!entry)throw new Error('记录不存在或已经认领');
+  // pending 可直接认领；kept 也允许改主意后再认领（已 claimed 的不可重复认领）。
+  const entry=s.journal.find(j=>j.id===a.id&&j.status!=='claimed');if(!entry)throw new Error('记录不存在或已经认领');
   if(s.tasks.filter(t=>!t.archived).length>=100)throw new Error('请先归档不再需要的行动');
   if(s.logs.length>=10000)throw new Error('记录已达容量上限，请先导出存档');
   const taskDomain=entry.domain??'mind',taskId=id(),logId=id(),title=entry.summary.slice(0,80);
@@ -145,6 +146,8 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
   s.logs.push({id:logId,taskId,title,domain:taskDomain,value:1,unit:'次',goalId:'',xp:0,date:today,at,undone:false,note:entry.text,source:'manual'});
   recalculate(s);entry.status='claimed';entry.logId=logId;return s;
  }
+ // 「不算」只改状态：不动经验、logs 与 tasks，只处理仍待认领的记录。
+ if(a.type==='keep-record'){const entry=s.journal.find(j=>j.id===a.id&&j.status==='pending');if(!entry)throw new Error('记录不存在或已经认领');entry.status='kept';return s;}
  if(a.type==='delete-journal'){
   const entry=s.journal.find(j=>j.id===a.id);if(!entry)throw new Error('记录不存在');
   s.journal=s.journal.filter(j=>j.id!==entry.id);

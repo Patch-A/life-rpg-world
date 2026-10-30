@@ -686,3 +686,19 @@ assert.equal(dlBlob.type,'text/markdown;charset=utf-8','MIME 类型');
 assert.equal(await dlBlob.text(),journalMarkdown(expState,expDate),'下载内容与纯函数一致');
 assert.deepEqual(revoked,['blob:stub'],'下载后释放 blob URL');
 console.log('PASS 导出下载文件名、MIME 与内容');
+// keep-record（点「不算」）：只把 pending 变 kept，不动经验、logs、tasks；claimed 不可降级
+const kept=reduceGame(after,{type:'keep-record',id:after.journal[0].id},new Date());
+assert.equal(kept.journal[0].status,'kept','pending 记录应变为 kept');
+assert.equal(kept.journal[0].logId,undefined,'keep 不应生成 log');
+assert.equal(kept.logs.length,after.logs.length,'keep 不得新增记录');
+assert.equal(kept.tasks.length,after.tasks.length,'keep 不得新增行动');
+assert.equal(xp(kept),xp(after),'keep 不得改变经验值');
+// 重复调用同一 id 必须报错，而不是静默成功
+assert.throws(()=>reduceGame(kept,{type:'keep-record',id:kept.journal[0].id},new Date()),/已经认领/,'重复 keep 应报错');
+// 已认领的记录不能被「不算」降级
+assert.throws(()=>reduceGame(c,{type:'keep-record',id:c.journal[0].id},new Date()),/已经认领/,'已认领记录不能降级为 kept');
+assert.equal(c.journal[0].status,'claimed','失败的 keep 不得改动原状态');
+// kept 之后仍可再认领
+const reclaimed=reduceGame(kept,{type:'claim-record',id:kept.journal[0].id},new Date());
+assert.equal(reclaimed.journal[0].status,'claimed','kept 记录可以再认领');
+console.log('PASS keep-record 只留记录、不动经验、已认领不可降级');

@@ -44,7 +44,7 @@ export async function postWithFallback(p:Provider,req:ChatRequest,fetchImpl:Fetc
  let detail='';
  try{detail=await response.clone().text();}catch{return response;}
  if(!/response_format/i.test(detail))return response;
- const{response_format:_dropped,...rest}=req.body;
+ const rest={...req.body};delete rest.response_format;
  return send(rest);
 }
 // 模型偶尔仍会套一层 ```json 围栏，解析前先剥掉。
