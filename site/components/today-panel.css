@@ -1,0 +1,22 @@
+/* 首页第一屏：记录官场景 + 对话区，跨 today-layout 两列；下面才是原有的今日面板。 */
+.today-assistant{
+  display:grid;
+  grid-column:1/-1;
+  grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);
+  gap:20px;
+  align-items:start;
+  min-width:0;
+}
+.today-assistant__scene,
+.today-assistant__chat{min-width:0}
+.today-assistant__chat{
+  display:flex;
+  flex-direction:column;
+}
+.today-assistant__chat>.chat-room{flex:1}
+@media(max-width:1050px){
+  .today-assistant{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+}
+@media(max-width:760px){
+  .today-assistant{grid-template-columns:1fr;gap:14px;margin-bottom:4px}
+}

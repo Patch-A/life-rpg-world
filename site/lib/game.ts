@@ -146,6 +146,14 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
   s.logs.push({id:logId,taskId,title,domain:taskDomain,value:1,unit:'次',goalId:'',xp:0,date:today,at,undone:false,note:entry.text,source:'manual'});
   recalculate(s);entry.status='claimed';entry.logId=logId;return s;
  }
+ // 改摘要：只动 summary。原文、领域、时刻、状态与关联日志都不动，也不重算经验。
+ if(a.type==='edit-journal'){
+  const entry=s.journal.find(j=>j.id===a.id);if(!entry)throw new Error('记录不存在');
+  if(entry.status==='claimed')throw new Error('已转为行动的记录不能再改摘要');
+  const summary=(typeof a.summary==='string'?a.summary.trim():'').slice(0,200);
+  if(!summary)throw new Error('摘要不能为空');
+  entry.summary=summary;return s;
+ }
  // 「不算」只改状态：不动经验、logs 与 tasks，只处理仍待认领的记录。
  if(a.type==='keep-record'){const entry=s.journal.find(j=>j.id===a.id);if(!entry)throw new Error('记录不存在或已经认领');if(entry.status==='kept')throw new Error('这条记录已经是「只留着」了');if(entry.status!=='pending')throw new Error('记录不存在或已经认领');entry.status='kept';return s;}
  // 撤销认领：只回收行动与经验，记录本身退回 kept 并留在存档/导出里。

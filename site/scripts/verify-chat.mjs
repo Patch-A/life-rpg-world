@@ -702,6 +702,47 @@ assert.equal(c.journal[0].status,'claimed','失败的 keep 不得改动原状态
 const reclaimed=reduceGame(kept,{type:'claim-record',id:kept.journal[0].id},new Date());
 assert.equal(reclaimed.journal[0].status,'claimed','kept 记录可以再认领');
 console.log('PASS keep-record 只留记录、不动经验、已认领不可降级');
+// edit-journal：只改摘要，不动原文/领域/时刻/状态/logId，也不重算经验
+const editedKept=reduceGame(kept,{type:'edit-journal',id:kept.journal[0].id,summary:'  换成自己的说法  '},new Date());
+assert.equal(editedKept.journal[0].summary,'换成自己的说法','摘要必须 trim 后写入');
+assert.equal(editedKept.journal[0].text,kept.journal[0].text,'不得改原文');
+assert.equal(editedKept.journal[0].domain,kept.journal[0].domain,'不得改领域');
+assert.equal(editedKept.journal[0].at,kept.journal[0].at,'不得改时刻');
+assert.equal(editedKept.journal[0].status,'kept','不得改状态');
+assert.equal(editedKept.journal[0].logId,undefined,'不得凭空生成关联日志');
+assert.equal(editedKept.journal.length,kept.journal.length,'不得增删记录');
+assert.equal(editedKept.tasks.length,kept.tasks.length,'不得新建行动');
+assert.equal(xp(editedKept),xp(kept),'改摘要不得改变经验值');
+// pending 同样可以改摘要
+const editedPending=reduceGame(after,{type:'edit-journal',id:after.journal[0].id,summary:'pending 也能改'},new Date());
+assert.equal(editedPending.journal[0].summary,'pending 也能改');
+assert.equal(editedPending.journal[0].status,'pending','改摘要不得顺手认领');
+// 已转为行动的记录不能改：摘要与已生成的行动/日志已经绑定
+assert.throws(()=>reduceGame(c,{type:'edit-journal',id:c.journal[0].id,summary:'想改'},new Date()),/已转为行动的记录不能再改摘要/);
+assert.equal(c.journal[0].summary,after.journal[0].summary,'失败的编辑不得改动原摘要');
+// 空摘要、找不到的记录都必须报错，而不是静默成功
+assert.throws(()=>reduceGame(after,{type:'edit-journal',id:after.journal[0].id,summary:'   '},new Date()),/摘要不能为空/);
+assert.throws(()=>reduceGame(after,{type:'edit-journal',id:'不存在',summary:'有效摘要'},new Date()),/记录不存在/);
+// 201 字截断到 200，与 chat-turn 的 summary 上限一致
+const longEdited=reduceGame(after,{type:'edit-journal',id:after.journal[0].id,summary:'长'.repeat(201)},new Date());
+assert.equal(longEdited.journal[0].summary.length,200);
+assert.equal(longEdited.journal[0].text,after.journal[0].text,'截断只作用于摘要');
+console.log('PASS edit-journal 只改摘要、claimed 不可改、空值与缺失报错、200 字截断');
+// 开场白：四个时段各一句、记录数口径、无记录不带数字、模型不可用那句
+const assistantLine=url(source('lib/assistant-line.ts'));
+const {openingLine,TIRED_LINE}=await import(assistantLine);
+const lineHours=[8,14,20,2];
+const lineFour=lineHours.map(hour=>openingLine('companion','2026-10-30',3,hour));
+lineFour.forEach(l=>assert.ok(typeof l==='string'&&l.trim().length>0,'四个时段都必须有开场白'));
+assert.equal(new Set(lineFour).size,4,'四个时段必须是四句不同的话');
+assert.ok(lineFour.every(l=>l.includes('3')),'有记录时要说出当天记录数');
+const lineZero=lineHours.map(hour=>openingLine('counselor','2026-10-30',0,hour));
+assert.ok(lineZero.every(l=>!/\d/.test(l)),'没有记录时整句不出现数字');
+assert.notEqual(openingLine('companion','2026-10-30',0,8),openingLine('counselor','2026-10-30',0,8),'咨询师语气必须与陪伴者不同');
+assert.ok(TIRED_LINE.includes('今天它有点累'),'模型不可用的那句必须包含「今天它有点累」');
+assert.ok(TIRED_LINE.includes('可以先用表单记录'),'必须给出表单记录的退路');
+assert.equal(/\d/.test(TIRED_LINE),false,'模型不可用那句不得出现数字');
+console.log('PASS 开场白四时段不同、记录数口径、无记录不带数字、模型不可用文案');
 // unclaim-record（撤销认领）：记录退回 kept 并保留，日志撤销、行动归档、经验回收
 const claimBase=reduceGame(after,{type:'claim-record',id:after.journal[0].id},new Date());
 const claimedLogId=claimBase.journal[0].logId,claimedTaskId=claimBase.tasks.at(-1).id;
@@ -774,3 +815,20 @@ assert.ok(chatRoom.includes('确定删除？'),'确认态必须问「确定删�
 assert.ok(chatRoom.includes('删除后这条记录就不能恢复了'),'必须说明删除不可恢复');
 assert.ok(chatRoom.indexOf("type:'delete-journal',id:entry.id")>chatRoom.indexOf('确定删除？'),'真正的删除动作必须出现在确认态之后');
 console.log('PASS 对话区结构冒烟：重试复用、通知时序、同意门槛与披露、撤销与两步删除');
+// 503 与摘要编辑：没有渲染测试宿主，只能守住「分支还在、真的派发、顺序正确」。
+const catchMark=chatRoom.indexOf('}catch(err)');
+const api503=chatRoom.indexOf('err instanceof ApiError&&err.status===503');
+const tiredLine=chatRoom.indexOf('onLine(TIRED_LINE)');
+const redError=chatRoom.indexOf('toast.error(requestError(err))');
+assert.ok(catchMark>-1,'必须保留请求失败的 catch');
+assert.ok(chatRoom.includes('ApiError'),'必须从 api-client 引入 ApiError，而不是靠文案判断 503');
+assert.ok(api503>catchMark,'503 判别必须写在请求失败的 catch 里');
+assert.ok(tiredLine>api503,'503 分支必须让助手说出 TIRED_LINE');
+assert.ok(redError>tiredLine,'503 分支不得落到 toast.error：红条只留给其他错误');
+const editOpen=chatRoom.indexOf('chat-room__edit-open');
+assert.ok(editOpen>-1,'未认领的记录必须有「修改」入口');
+assert.ok(chatRoom.includes("type:'edit-journal',id:entry.id"),'保存摘要必须真的派发 edit-journal');
+assert.ok(/entry\.status!==['"]claimed['"]/.test(chatRoom),'已转为行动的记录不得显示修改入口');
+assert.ok(chatRoom.includes('disabled={locked||!draft.trim()}'),'空摘要必须禁用保存');
+assert.ok(chatRoom.includes('maxLength={200}'),'摘要输入必须与 reducer 的上限一致');
+console.log('PASS 对话区结构冒烟：503 让助手说话、摘要可改且 claimed 不给入口');

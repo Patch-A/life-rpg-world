@@ -243,11 +243,76 @@
 }
 .chat-room__badge--claimed{background:#67dfb51f;color:#8ff0cc}
 .chat-room__record-summary{
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
   margin:6px 0 0;
   font-size:13.5px;
   line-height:1.65;
-  overflow-wrap:anywhere;
 }
+.chat-room__record-summary>span{overflow-wrap:anywhere}
+.chat-room__edit-open{
+  flex:none;
+  margin-left:auto;
+  min-height:28px;
+  padding:0 8px;
+  border:1px solid transparent;
+  border-radius:9px;
+  background:transparent;
+  color:#b7a9d9;
+  font-size:11.5px;
+  white-space:nowrap;
+  cursor:pointer;
+}
+.chat-room__edit-open:hover:not(:disabled){border-color:#a98ec54d;color:#e8dcf8}
+.chat-room__edit-open:focus-visible{outline:2px solid #d6baff;outline-offset:2px}
+.chat-room__edit-open:disabled{opacity:.5;cursor:not-allowed}
+.chat-room__edit{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+  margin-top:8px;
+}
+.chat-room__edit-input{
+  flex:1 1 180px;
+  min-width:0;
+  min-height:38px;
+  height:38px;
+  padding:0 10px;
+  border:1px solid #a98ec54d;
+  border-radius:10px;
+  background:#191727;
+  color:#eee6ff;
+  font-size:13.5px;
+}
+.chat-room__edit-input:focus-visible{outline:2px solid #c6a6ed;outline-offset:1px}
+.chat-room__edit-save,
+.chat-room__edit-cancel{
+  display:inline-flex;
+  align-items:center;
+  min-height:38px;
+  padding:0 12px;
+  border-radius:10px;
+  font-size:12.5px;
+  cursor:pointer;
+}
+.chat-room__edit-save{
+  border:1px solid #7c5cc4;
+  background:#4a3770;
+  color:#f1e8ff;
+}
+.chat-room__edit-save:hover:not(:disabled){background:#5c4589}
+.chat-room__edit-cancel{
+  border:1px solid #a98ec54d;
+  background:#241f3a;
+  color:#d9cdf2;
+}
+.chat-room__edit-cancel:hover:not(:disabled){border-color:#c6a6ed}
+.chat-room__edit-save:disabled,
+.chat-room__edit-cancel:disabled{opacity:.5;cursor:not-allowed}
+.chat-room__edit-save:focus-visible,
+.chat-room__edit-cancel:focus-visible{outline:2px solid #d6baff;outline-offset:2px}
 .chat-room__actions{
   display:flex;
   flex-wrap:wrap;

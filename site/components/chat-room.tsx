@@ -3,8 +3,9 @@
 import {Fragment,useEffect,useRef,useState,type FormEvent} from 'react';
 import {Download,Send,Trash2,Undo2} from 'lucide-react';
 import {toast} from 'sonner';
-import {readJSON,requestError} from '@/lib/api-client';
+import {ApiError,readJSON,requestError} from '@/lib/api-client';
 import {type Action,type Game,type JournalEntry,availableXP,day,domains} from '@/lib/game';
+import {TIRED_LINE} from '@/lib/assistant-line';
 import {exportJournal} from '@/lib/export-journal';
 import type {ChatResult} from '@/lib/ai/chat-contract';
 import './chat-room.css';
@@ -21,10 +22,18 @@ function domainMeta(id:string|undefined){return domains.find(d=>d.id===id)??doma
 
 function RecordCard({entry,state,busy,sending,act,confirming,onAskDelete,onCancelDelete}:{entry:JournalEntry;state:Game;busy:boolean;sending:boolean;act:Act;confirming:boolean;onAskDelete:()=>void;onCancelDelete:()=>void}){
   const meta=domainMeta(entry.domain),locked=busy||sending;
+  // 摘要可以改，但已转为行动的记录不再给入口：它已经进了行动与记录，改摘要会让两边说法不一致。
+  const [editing,setEditing]=useState(false);
+  const [draft,setDraft]=useState(entry.summary);
   // 经验受「当日同领域上限 30」约束：如实显示会得到的值，避免点下去发现是 0。
   const left=availableXP(state,meta.id);
   const claimLabel=left>0?`算，记进${meta.name} · +${left} EXP`:`算，记进${meta.name} · 今日已满`;
   const time=timeOf(entry.at);
+  async function saveSummary(){
+    if(locked||!draft.trim())return;
+    const ok=await act({type:'edit-journal',id:entry.id,summary:draft});
+    if(ok)setEditing(false);
+  }
   // 点卡片其他位置、或点了别的记录，都退回初始态，免得「确定删除」一直挂在那儿。
   return <article className="chat-room__record" data-status={entry.status} onClick={onCancelDelete}>
     <div className="chat-room__record-head">
@@ -33,7 +42,16 @@ function RecordCard({entry,state,busy,sending,act,confirming,onAskDelete,onCance
       {entry.status==='claimed'&&<span className="chat-room__badge chat-room__badge--claimed">已转为行动</span>}
       {entry.status==='kept'&&<span className="chat-room__badge">只留着</span>}
     </div>
-    <p className="chat-room__record-summary">{entry.summary}</p>
+    {editing
+      ? <div className="chat-room__edit" onClick={e=>e.stopPropagation()}>
+          <input className="chat-room__edit-input" value={draft} maxLength={200} disabled={locked} onChange={e=>setDraft(e.target.value)} aria-label="修改这条记录的摘要"/>
+          <button type="button" className="chat-room__edit-save" disabled={locked||!draft.trim()} onClick={saveSummary}>保存</button>
+          <button type="button" className="chat-room__edit-cancel" disabled={locked} onClick={()=>{setDraft(entry.summary);setEditing(false);}}>取消</button>
+        </div>
+      : <div className="chat-room__record-summary">
+          <span>{entry.summary}</span>
+          {entry.status!=='claimed'&&<button type="button" className="chat-room__edit-open" disabled={locked} aria-label={`修改这条记录的摘要：${entry.summary}`} onClick={e=>{e.stopPropagation();setDraft(entry.summary);setEditing(true);}}>修改</button>}
+        </div>}
     <div className="chat-room__actions">
       {(entry.status==='pending'||entry.status==='kept')&&<button type="button" className="chat-room__claim" disabled={locked} onClick={()=>act({type:'claim-record',id:entry.id})}>{claimLabel}</button>}
       {entry.status==='pending'&&<button type="button" className="chat-room__keep" disabled={locked} onClick={()=>act({type:'keep-record',id:entry.id})}>就记着</button>}
@@ -130,6 +148,8 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
     }catch(err){
       // 请求没成功：原文放回输入框，用户可以直接再发一次。
       setDraft(text);
+      // 模型不可用（503）不是用户的错：让助手自己在气泡里说一句累，不弹红条、不提示「没存上」。
+      if(err instanceof ApiError&&err.status===503){onLine(TIRED_LINE);return;}
       toast.error(requestError(err));
       return;
     }finally{
