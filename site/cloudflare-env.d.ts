@@ -7,5 +7,7 @@ declare namespace Cloudflare {
     AI_ENABLED?: string;
     AI_USER_DAILY_LIMIT?: string;
     AI_SITE_DAILY_LIMIT?: string;
+    AI_CHAT_USER_DAILY_LIMIT?: string;
+    AI_CHAT_SITE_DAILY_LIMIT?: string;
   }
 }
