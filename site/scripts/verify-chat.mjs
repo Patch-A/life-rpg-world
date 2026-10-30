@@ -85,3 +85,47 @@ assert.equal(reduceGame(merged,{type:'delete-memory-fact',id:merged.memory[0].id
 assert.equal(reduceGame(merged,{type:'delete-memory-fact'},new Date()).memory.length,0);
 assert.equal(reduceGame(merged,{type:'delete-memory-fact',id:'不存在'},new Date()).memory.length,1);
 console.log('PASS 认领成行动、经验上限、删除联动、记忆可删');
+// 聊天契约：防编造、姿态升级需同意、降级放行、契约限流
+const agentContract=url(source('lib/agent-contract.ts').replace("from 'zod'",`from '${import.meta.resolve('zod')}'`));
+const chatContract=url(source('lib/ai/chat-contract.ts').replaceAll("from '@/lib/game'",`from '${game}'`).replace("from 'zod'",`from '${import.meta.resolve('zod')}'`));
+const provider=url(source('lib/ai/deepseek.ts').replace("from '../agent-contract'",`from '${agentContract}'`).replace("from './chat-contract'",`from '${chatContract}'`));
+const {chatResultSchema,sanitizeChatResult}=await import(chatContract);
+const {generateChat}=await import(provider);
+const userText='今天看完了第三章，卡在并发';
+const raw={reply:'卡在哪一步？',posture:'counselor',askSwitch:false,records:[
+  {summary:'看完第三章',text:'今天看完了第三章',domain:'mind',tags:[]},
+  {summary:'编的一条',text:'我昨天还学了英语',domain:'mind',tags:[]}],memoryCandidates:[],quickReplies:[]};
+// 1 编造的记录被丢弃
+assert.equal(sanitizeChatResult(raw,userText,'companion',false).records.length,1);
+// 2 没点头就升咨询师 → 打回陪伴者并重新征求
+const s2=sanitizeChatResult(raw,userText,'companion',false);
+assert.equal(s2.posture,'companion');assert.equal(s2.askSwitch,true);
+// 3 点头后可升
+assert.equal(sanitizeChatResult(raw,userText,'companion',true).posture,'counselor');
+// 4 陪伴者不主张升级
+assert.equal(sanitizeChatResult({...raw,posture:'companion',askSwitch:true},userText,'counselor',false).askSwitch,false);
+// 5 契约拒绝超量
+assert.throws(()=>chatResultSchema.parse({...raw,records:new Array(4).fill(raw.records[0])}));
+console.log('PASS 防编造、姿态升级需同意、降级放行、契约限流');
+// 去重后仍超量时兜底截断到 3；不修改入参
+const dup={...raw,records:[{summary:'a',text:'今天',domain:'mind',tags:[]},{summary:'a',text:'今天',domain:'mind',tags:[]},{summary:'b',text:'看完',domain:'mind',tags:[]},{summary:'c',text:'第三章',domain:'mind',tags:[]},{summary:'d',text:'并发',domain:'mind',tags:[]}]};
+const cut=sanitizeChatResult(dup,userText,'companion',true);
+assert.equal(cut.records.length,3);assert.deepEqual(cut.records.map(r=>r.text),['今天','看完','第三章']);
+assert.equal(dup.records.length,5);assert.equal(raw.records.length,2);
+console.log('PASS 记录去重与超量兜底、入参不被改写');
+// generateChat：同一 endpoint 与请求参数、长度耗尽/非 JSON/额度耗尽的降级
+const oldFetch=globalThis.fetch;let seen;
+globalThis.fetch=async(u,options)=>{seen={u,body:JSON.parse(options.body),signal:options.signal};return Response.json({choices:[{message:{content:JSON.stringify({reply:'先说说卡在哪一步？',posture:'companion',askSwitch:false,records:[],memoryCandidates:[],quickReplies:[]})},finish_reason:'stop'}]});};
+try{
+ const chat=await generateChat('test-key','test-model',{history:[]});
+ assert.equal(seen.u,'https://api.deepseek.com/chat/completions');
+ assert.equal(seen.body.stream,false);assert.deepEqual(seen.body.thinking,{type:'disabled'});assert.deepEqual(seen.body.response_format,{type:'json_object'});
+ assert.ok(seen.signal instanceof AbortSignal);assert.equal(chat.posture,'companion');
+ globalThis.fetch=async()=>Response.json({choices:[{message:{content:'{}'},finish_reason:'length'}]});
+ await assert.rejects(()=>generateChat('test-key','test-model',{}),/未完整/);
+ globalThis.fetch=async()=>Response.json({choices:[{message:{content:'不是JSON'},finish_reason:'stop'}]});
+ await assert.rejects(()=>generateChat('test-key','test-model',{}),/不完整/);
+ globalThis.fetch=async()=>new Response('{}',{status:429});
+ await assert.rejects(()=>generateChat('test-key','test-model',{}),e=>e.status===429);
+}finally{globalThis.fetch=oldFetch;}
+console.log('PASS 模型调用参数、45秒超时信号与失败降级');
