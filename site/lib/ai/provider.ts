@@ -11,15 +11,17 @@ const clean=(value?:string)=>(value||'').trim();
 const trimTrailingSlash=(value:string)=>value.replace(/\/+$/,'');
 // 请求默认走全局 fetch，但每次调用时才读取，便于测试替换且不绑定 this。
 const defaultFetch:FetchLike=(input,init)=>globalThis.fetch(input,init);
-export function createProvider(key:string,model?:string,baseUrl?:string):Provider{
+// 默认模型随调用方传入：行动助手沿用 deepseek-flash，记录官用 deepseek-chat，DEFAULT_MODEL 只作兜底。
+export function createProvider(key:string,model?:string,baseUrl?:string,defaultModel:string=DEFAULT_MODEL):Provider{
  const base=trimTrailingSlash(clean(baseUrl))||DEFAULT_BASE_URL;
- return{key,model:clean(model)||DEFAULT_MODEL,baseUrl:base,isDeepSeek:/deepseek/i.test(base)};
+ return{key,model:clean(model)||defaultModel,baseUrl:base,isDeepSeek:/deepseek/i.test(base)};
 }
 // 没有 Key 就返回 null：路由据此返回「还没有配置模型」，不抛异常。
-export function resolveProvider(env:ProviderEnv):Provider|null{
+// 显式配置的模型名优先于 defaultModel 参数。
+export function resolveProvider(env:ProviderEnv,defaultModel?:string):Provider|null{
  const key=clean(env.AI_API_KEY)||clean(env.DEEPSEEK_API_KEY);
  if(!key)return null;
- return createProvider(key,clean(env.AI_MODEL)||clean(env.DEEPSEEK_MODEL),clean(env.AI_BASE_URL));
+ return createProvider(key,clean(env.AI_MODEL)||clean(env.DEEPSEEK_MODEL),clean(env.AI_BASE_URL),defaultModel);
 }
 // 只有 DeepSeek 端点认 thinking 字段；其他端点（Ollama、vLLM 等）一律不发，否则直接 400。
 export function buildChatRequest(p:Provider,system:string,user:unknown,options:{maxTokens?:number;temperature?:number}={}):ChatRequest{

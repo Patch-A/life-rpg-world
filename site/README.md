@@ -24,9 +24,10 @@
     npm run dev
 
 - `AI_API_KEY`：必填，你的模型服务 Key，不要提交进仓库。
-- `AI_MODEL`：模型名，默认 `deepseek-chat`。
+- `AI_MODEL`：模型名。留空则按调用方默认（记录官 `deepseek-chat`、行动助手 `deepseek-flash`）。
 - `AI_BASE_URL`：默认 `https://api.deepseek.com`。换本地或其他服务时改成对方地址，例如 Ollama 的 `http://localhost:11434`，此时模型一般填 `qwen3`、`llama3.1` 之类。
 - `DEEPSEEK_API_KEY` / `DEEPSEEK_MODEL`：旧名，仅为兼容已有部署保留；同时配置时 `AI_*` 优先。
+- `AI_ENABLED` 与各 `AI_*_DAILY_LIMIT`：运维开关与额度，留空即用代码默认（每日：行动助手每用户 10 / 全站 100，记录官每用户 50 / 全站 500），详见 `.env.example`。
 
 `AI_BASE_URL` 指向非 DeepSeek 端点时，请求不再发送 DeepSeek 专有的 `thinking` 字段。本地模型（Ollama、vLLM、LM Studio 等）常常不支持 `response_format`，服务端在收到点名该字段的 400 时会自动去掉它重试一次，不需要手工改代码。能否稳定返回结构化 JSON 取决于所选模型本身。
 

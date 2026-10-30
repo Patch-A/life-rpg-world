@@ -469,17 +469,22 @@ assert.equal(resolveProvider({DEEPSEEK_API_KEY:'k'}).key,'k');
 assert.equal(resolveProvider({AI_API_KEY:'a',DEEPSEEK_API_KEY:'d'}).key,'a');
 assert.equal(resolveProvider({AI_API_KEY:'  '}),null,'纯空白 key 视为没配');
 assert.equal(resolveProvider({}),null);
-// 端点与能力：非 DeepSeek 不发 thinking，DeepSeek 才发
+// 端点与能力
 const open=resolveProvider({AI_API_KEY:'k',AI_BASE_URL:'http://localhost:11434/'});
 assert.equal(open.baseUrl,'http://localhost:11434');
 assert.equal(open.isDeepSeek,false);
-assert.equal('thinking' in buildChatRequest(open,'s',{}).body,false,'非 DeepSeek 不发送 thinking');
 const ds=resolveProvider({DEEPSEEK_API_KEY:'k'});
 assert.equal(ds.baseUrl,'https://api.deepseek.com');
 assert.equal(ds.model,'deepseek-chat');
 assert.equal(buildChatRequest(ds,'s',{}).url,'https://api.deepseek.com/chat/completions');
-assert.equal(buildChatRequest(ds,'s',{}).body.thinking.type,'disabled');
 assert.equal(buildChatRequest(open,'s',{}).url,'http://localhost:11434/chat/completions');
+// 能力降级单独成组：变异时能独立定位，不与 isDeepSeek 断言互相遮蔽
+assert.equal('thinking' in buildChatRequest(open,'s',{}).body,false,'非 DeepSeek 不发送 thinking');
+assert.equal(buildChatRequest(ds,'s',{}).body.thinking.type,'disabled','DeepSeek 端点必须发送 thinking');
+// 默认模型做成参数：缺省值随调用方走，显式配置的模型名优先
+assert.equal(resolveProvider({DEEPSEEK_API_KEY:'k'},'deepseek-flash').model,'deepseek-flash');
+assert.equal(resolveProvider({DEEPSEEK_API_KEY:'k',AI_MODEL:'custom'},'deepseek-flash').model,'custom','显式配置优先于参数默认');
+assert.equal(resolveProvider({DEEPSEEK_API_KEY:'k'}).model,'deepseek-chat','不传参数时仍以 DEFAULT_MODEL 兜底');
 assert.equal(resolveProvider({AI_API_KEY:'k',AI_MODEL:'qwen3'}).model,'qwen3');
 assert.equal(resolveProvider({AI_API_KEY:'k',AI_MODEL:'qwen3',DEEPSEEK_MODEL:'old'}).model,'qwen3','AI_MODEL 优先于旧名');
 // 剥围栏
@@ -531,4 +536,21 @@ console.log('PASS 非 DeepSeek 端点：response_format 自动降级、URL 与 t
   assert.equal((await empty.json()).error,'还没有配置模型。把 API Key 填进环境变量后就能聊了，手动记录不受影响。');
  }finally{globalThis.fetch=byokOldFetch;process.env.NODE_ENV=prevEnv;delete globalThis.__chatDB;delete globalThis.__chatEnv;byokSqlite.close();}
  console.log('PASS 路由层自带模型：AI_API_KEY 单独可用、AI_BASE_URL 生效、都没配时 503');
+}
+// ---- 默认模型按路由区分：行动助手仍是 deepseek-flash，记录官是 deepseek-chat ----
+{
+ const prevEnv=process.env.NODE_ENV;process.env.NODE_ENV='production';
+ const defSqlite=new DatabaseSync(':memory:');
+ for(const f of readdirSync(new URL('../drizzle/',import.meta.url)).filter(f=>f.endsWith('.sql')).sort())defSqlite.exec(source('drizzle/'+f));
+ globalThis.__chatDB=wrapDb(defSqlite);
+ const getModel=async(tag)=>{const {GET}=await import(agentRouteUrl()+'#'+tag);const res=await GET(new Request('https://test.invalid/api/agent',{headers:{'oai-authenticated-user-id':'alice'}}));return(await res.json()).model;};
+ try{
+  globalThis.__chatEnv={DEEPSEEK_API_KEY:'k'};
+  assert.equal(await getModel('a1'),'deepseek-flash','行动助手未配模型时默认仍是 deepseek-flash，不得被统一成 chat');
+  globalThis.__chatEnv={AI_API_KEY:'k'};
+  assert.equal(await getModel('a2'),'deepseek-flash','换 AI_API_KEY 后行动助手默认模型不变');
+  globalThis.__chatEnv={AI_API_KEY:'k',AI_MODEL:'custom-agent'};
+  assert.equal(await getModel('a3'),'custom-agent','显式配置的模型名优先于路由默认');
+ }finally{process.env.NODE_ENV=prevEnv;delete globalThis.__chatDB;delete globalThis.__chatEnv;defSqlite.close();}
+ console.log('PASS 默认模型按路由区分：行动助手 deepseek-flash、显式配置优先');
 }

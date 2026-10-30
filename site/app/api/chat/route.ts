@@ -21,7 +21,7 @@ export async function POST(req:Request){
  let runId='';try{
  const raw=await boundedBody(req);const checked=input.safeParse(raw);if(!checked.success)throw new RequestError('请填写要说的话，并确认成年试用与AI数据说明');const a=checked.data;
  if(env.AI_ENABLED==='false')return noStore({error:'AI服务尚未启用，请使用手动记录；也可以从反馈入口联系维护者。'},503);
- const provider=resolveProvider(env);if(!provider)return noStore({error:NO_MODEL},503);
+ const provider=resolveProvider(env,'deepseek-chat');if(!provider)return noStore({error:NO_MODEL},503);
  const db=database();const saved=await db.prepare('SELECT data FROM saves WHERE user_id=?').bind(uid).first<{data:string}>();if(!saved)throw new RequestError('请先创建角色');const state=normalizeGame(JSON.parse(saved.data) as Game);if(!state.profile)throw new RequestError('请先创建角色');
  if(state.profile.birth&&ageAt(state.profile.birth,day())<18)throw new RequestError('当前AI试用面向成年人；手动记录仍可使用',403);
  const previous=await db.prepare("SELECT user_id,result,status FROM agent_runs WHERE id=? AND goal_id='__chat__' AND created_at>=?").bind(a.requestId,cutoff()).first<{user_id:string;result:string;status:string}>();if(previous){if(previous.user_id!==uid)return noStore({error:'请求标识无效'},409);return previous.status==='complete'?noStore({run:JSON.parse(previous.result)}):noStore({error:'这次对话已经处理，请查看已有回复或发起一次新请求。'},409);}
