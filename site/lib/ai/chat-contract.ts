@@ -13,19 +13,22 @@ const recordSchema = z.preprocess(shape, z.object({
 }).transform(r => r.summary && r.text ? r : null));
 const memoryCandidateSchema = z.preprocess(shape, z.object({
  text: z.any().transform(v => cut(v, 200)),
- kind: z.enum(['fact', 'preference', 'situation']).catch('fact'),
-}).transform(m => m.text ? m : null));
+ kind: z.any().transform(v => typeof v === 'string' && ['fact', 'preference', 'situation'].includes(v) ? v as 'fact' | 'preference' | 'situation' : undefined),
+}).transform(m => m.text && m.kind ? { text: m.text, kind: m.kind } : null));
 const quickReplySchema = z.preprocess(shape, z.object({
  label: z.any().transform(v => cut(v, 20)),
  kind: z.enum(['say', 'accept-switch']).catch('say'),
 }).transform(q => q.label ? q : null));
+// 顶层：reply 空/非字符串无法兜底（没话可说这轮没意义），其余字段一律归一而不整轮失败。
+const list = (v: unknown) => Array.isArray(v) ? v : (v && typeof v === 'object' ? [v] : []);
+const bool = (v: unknown) => v === true || v === 'true' || v === 1 || v === '1';
 export const chatResultSchema = z.object({
- reply: z.string().trim().min(1).max(2000),
- posture: z.enum(postures),
- askSwitch: z.boolean(),
- records: z.preprocess(v => Array.isArray(v) ? v : [], z.array(recordSchema)).transform(a => a.flatMap(x => x ? [x] : [])),
- memoryCandidates: z.preprocess(v => Array.isArray(v) ? v : [], z.array(memoryCandidateSchema)).transform(a => a.flatMap(x => x ? [x] : [])),
- quickReplies: z.preprocess(v => Array.isArray(v) ? v : [], z.array(quickReplySchema)).transform(a => a.flatMap(x => x ? [x] : [])),
+ reply: z.preprocess(v => typeof v === 'string' ? v.trim().slice(0, 2000) : v, z.string().min(1)),
+ posture: z.enum(postures).catch('companion'),
+ askSwitch: z.any().transform(bool),
+ records: z.preprocess(list, z.array(recordSchema)).transform(a => a.flatMap(x => x ? [x] : [])),
+ memoryCandidates: z.preprocess(list, z.array(memoryCandidateSchema)).transform(a => a.flatMap(x => x ? [x] : [])),
+ quickReplies: z.preprocess(list, z.array(quickReplySchema)).transform(a => a.flatMap(x => x ? [x] : [])),
 });
 export type ChatResult = z.infer<typeof chatResultSchema>;
 export type Posture = typeof postures[number];

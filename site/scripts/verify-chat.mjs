@@ -136,19 +136,41 @@ console.log('PASS 记录去重与超量兜底、入参不被改写');
 const dirty={reply:'收到',posture:'companion',askSwitch:false,records:[
   {summary:'长正文',text:'长'.repeat(401),domain:'study',tags:null},
   {summary:'',text:'没有摘要',domain:'mind',tags:[]},
-  'not-an-object'],memoryCandidates:Array.from({length:7},(_,i)=>({text:'记忆'+i,kind:'mood'})),quickReplies:null};
+  'not-an-object'],memoryCandidates:[...Array.from({length:7},(_,i)=>({text:'记忆'+i,kind:'mood'})),{text:'认识但不认识的类型被丢',kind:'emotion'}],quickReplies:null};
+// kind 非法的记忆候选一律丢弃（不静默标成 fact 污染长期记忆）
 const parsed=chatResultSchema.parse(dirty);
 assert.equal(parsed.records.length,1);
 assert.equal(parsed.records[0].text.length,400);
 assert.equal(parsed.records[0].domain,undefined);
 assert.deepEqual(parsed.records[0].tags,[]);
-assert.equal(parsed.memoryCandidates.length,7);
-assert.equal(parsed.memoryCandidates[0].kind,'fact');
+assert.equal(parsed.memoryCandidates.length,0);
+assert.deepEqual(parsed.memoryCandidates,[]);
+const mixedMem=chatResultSchema.parse({...raw,memoryCandidates:[{text:'喜欢清晨写作',kind:'emotion'},{text:'在写一本书',kind:'situation'},{text:'另一个',kind:'weird'}]});
+assert.deepEqual(mixedMem.memoryCandidates,[{text:'在写一本书',kind:'situation'}]);
 assert.deepEqual(parsed.quickReplies,[]);
-assert.equal(sanitizeChatResult(parsed,'别的话','companion',false).memoryCandidates.length,5);
+assert.equal(sanitizeChatResult(chatResultSchema.parse({...raw,memoryCandidates:Array.from({length:7},(_,i)=>({text:'记忆'+i,kind:'fact'}))}),'别的话','companion',false).memoryCandidates.length,5);
 assert.deepEqual(chatResultSchema.parse({...raw,records:null,memoryCandidates:null,quickReplies:null}).records,[]);
+// 数组字段若被写成单个对象，保留而不是静默清空
+const singleObj=chatResultSchema.parse({...raw,records:{summary:'单条',text:'卡在并发',tags:[]},memoryCandidates:{text:'在写一本书',kind:'situation'},quickReplies:{label:'继续说',kind:'say'}});
+assert.equal(singleObj.records.length,1);assert.equal(singleObj.records[0].summary,'单条');
+assert.equal(singleObj.memoryCandidates.length,1);assert.equal(singleObj.quickReplies.length,1);
 assert.equal(chatResultSchema.parse({...raw,records:new Array(4).fill(raw.records[0])}).records.length,4,'schema 不因条数超量整轮失败');
-console.log('PASS 脏元素就地修正、条数超量不失败、数组 null 补空');
+console.log('PASS 脏元素就地修正、条数超量不失败、数组 null 补空、单对象不清空');
+// 顶层字段宽容化：单处格式异常不整轮丢弃
+const strBool=chatResultSchema.parse({...raw,askSwitch:'false'});
+assert.equal(strBool.askSwitch,false);assert.equal(typeof strBool.askSwitch,'boolean');
+assert.equal(chatResultSchema.parse({...raw,askSwitch:'true'}).askSwitch,true);
+assert.equal(chatResultSchema.parse({...raw,askSwitch:'maybe'}).askSwitch,false);
+assert.equal(chatResultSchema.parse({...raw,askSwitch:undefined}).askSwitch,false);
+assert.equal(chatResultSchema.parse({...raw,posture:'therapist'}).posture,'companion');
+assert.equal(chatResultSchema.parse({...raw,posture:undefined}).posture,'companion');
+assert.equal(chatResultSchema.parse({...raw,posture:'counselor'}).posture,'counselor');
+const longReply=chatResultSchema.parse({...raw,reply:'长'.repeat(2500)});
+assert.equal(longReply.reply.length,2000);
+// 空/非字符串 reply 仍整轮失败：助手不说话这一轮没有意义
+assert.throws(()=>chatResultSchema.parse({...raw,reply:''}));
+assert.throws(()=>chatResultSchema.parse({...raw,reply:42}));
+console.log('PASS 顶层 posture/askSwitch/reply 宽容化，仅空 reply 仍失败');
 // generateChat：同一 endpoint 与请求参数、长度耗尽/非 JSON/额度耗尽的降级
 const oldFetch=globalThis.fetch;let seen;
 globalThis.fetch=async(u,options)=>{seen={u,body:JSON.parse(options.body),signal:options.signal};return Response.json({choices:[{message:{content:JSON.stringify({reply:'先说说卡在哪一步？',posture:'companion',askSwitch:false,records:[],memoryCandidates:[],quickReplies:[]})},finish_reason:'stop'}]});};
