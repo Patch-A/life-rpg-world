@@ -188,3 +188,63 @@ try{
  await assert.rejects(()=>generateChat('test-key','test-model',{}),e=>e.status===429);
 }finally{globalThis.fetch=oldFetch;}
 console.log('PASS 模型调用参数、45秒超时常量、max_tokens对齐与失败降级');
+// 上下文投影：隐私字段不进 JSON、超量裁剪、已撤销记录不发送、净额与今日经验口径
+const chatContext=url(source('lib/chat-context.ts').replaceAll("from '@/lib/game'",`from '${game}'`));
+const {buildChatContext}=await import(chatContext);
+const {day:gameDay,progress:gameProgress,level:gameLevel}=await import(game);
+const ctxToday=gameDay();
+const ctxProfile={...c.profile,name:'隐私名字',birth:{date:'1990-01-01'}};
+const ctxGoals=[
+ {id:'g-read',title:'读完一本书',domain:'mind',target:300,unit:'分钟',deadline:'',paused:false,createdAt:''},
+ {id:'g-save',title:'旅行基金',domain:'wealth',target:5000,unit:'元',deadline:'',paused:false,createdAt:'',initial:1000},
+];
+// 24 条填充记录日期在 09-01..09-24，用于验证「取最近 20 条后翻转成时间正序」
+const ctxFillers=Array.from({length:24},(_,i)=>{const d='2026-09-'+String(i+1).padStart(2,'0');return {id:'f'+i,taskId:'',title:'记录'+i,domain:'career',value:1,unit:'次',goalId:'',xp:0,date:d,at:d+'T00:00:00.000Z',undone:false};});
+const ctxLogs=[
+ {id:'read-1',taskId:'',title:'读完一章',domain:'mind',value:20,unit:'分钟',goalId:'g-read',xp:30,date:ctxToday,at:'2026-10-30T09:00:00.000Z',undone:false,note:'今天读完一章'},
+ {id:'save-in',taskId:'',title:'旅行基金',domain:'wealth',value:1200,unit:'元',goalId:'g-save',xp:30,date:ctxToday,at:'2026-10-30T08:00:00.000Z',undone:false,direction:'deposit',photos:['photo_00000000-0000-0000-0000-000000000001']},
+ {id:'save-out',taskId:'',title:'旅行基金',domain:'wealth',value:200,unit:'元',goalId:'g-save',xp:0,date:'2026-10-27',at:'2026-10-27T08:00:00.000Z',undone:false,direction:'withdraw'},
+ {id:'undone',taskId:'',title:'不该出现的撤销记录',domain:'mind',value:5,unit:'分钟',goalId:'',xp:30,date:ctxToday,at:'2026-10-30T10:00:00.000Z',undone:true},
+ ...ctxFillers,
+];
+const ctxMemory=Array.from({length:45},(_,i)=>({id:'m'+i,text:'记忆'+i,kind:['fact','preference','situation'][i%3],firstSeen:'2026-09-01T00:00:00.000Z',lastSeen:'2026-09-01T00:00:00.000Z',weight:1}));
+const ctxChat=Array.from({length:100},(_,i)=>({id:'h'+i,date:ctxToday,at:'2026-10-30T00:00:00.000Z',role:i%2?'assistant':'user',text:'第'+i+'条'}));
+const ctxState={...c,profile:ctxProfile,goals:ctxGoals,logs:ctxLogs,chat:ctxChat,memory:ctxMemory,
+ milestones:[{id:'ms',kind:'custom',title:'纪念不该出现',date:'2020-01-01',note:'',photos:['photo_00000000-0000-0000-0000-000000000002'],at:'',updatedAt:'',archived:false}],
+ birthdays:[{id:'bd',year:2000,date:'2000-01-01',label:'生日不该出现',calendar:'solar',adjustment:'',age:26,note:'',wish:'',photos:[],at:'',updatedAt:'',archived:false}],
+ birthdayQueue:[{year:2000,date:'2000-01-01',label:'生日队列不该出现',calendar:'solar',adjustment:''}]};
+const snapshot=o=>JSON.stringify(o);
+const ctxInputBefore=snapshot([ctxState.logs,ctxState.memory,ctxState.chat]);
+const ctx=buildChatContext(ctxState,{userText:'这个月还剩多少',prevPosture:'counselor',switchConsent:false});
+const ctxJson=JSON.stringify(ctx);
+// 隐私边界：整份 JSON 里不能出现照片 id、出生日期、生日、人生纪念或用户姓名
+assert.equal(ctxJson.includes('photo_'),false,'不得发送照片');
+assert.equal(ctxJson.includes('birth'),false,'不得发送生日');
+assert.equal(ctxJson.includes('milestone'),false,'不得发送人生纪念');
+assert.equal(ctxJson.includes('隐私名字'),false,'不得发送用户姓名');
+assert.equal(ctxJson.includes('不该出现'),false,'撤销记录与纪念/生日内容都不得出现');
+assert.equal(snapshot([ctxState.logs,ctxState.memory,ctxState.chat]),ctxInputBefore,'投影不得改写入参');
+// 只投影白名单字段，防止后续新增字段顺手带出隐私数据
+assert.deepEqual(Object.keys(ctx).sort(),['goals','level','memory','prevPosture','recentChat','recentLogs','savings','todayXp','userText']);
+assert.deepEqual(Object.keys(ctx.goals[0]).sort(),['domain','progress','target','title','unit']);
+assert.deepEqual(Object.keys(ctx.recentLogs[0]).sort(),['date','domain','title','unit','value']);
+assert.deepEqual(Object.keys(ctx.memory[0]).sort(),['kind','text']);
+assert.deepEqual(Object.keys(ctx.recentChat[0]).sort(),['role','text']);
+assert.equal(ctx.userText,'这个月还剩多少');assert.equal(ctx.prevPosture,'counselor');
+// 超量裁剪：40 条 chat、40 条记忆、20 条记录
+assert.equal(ctx.recentChat.length,40,'聊天超量裁剪到最近 40 条');
+assert.equal(ctx.recentChat[0].text,'第60条');assert.equal(ctx.recentChat.at(-1).text,'第99条');
+assert.ok(ctx.recentChat.every(t=>t.role==='user'||t.role==='assistant'));
+assert.equal(buildChatContext({...ctxState,chat:ctxChat.slice(-10)},{userText:'x',prevPosture:'companion',switchConsent:false}).recentChat.length,10,'不足 40 条全取');
+assert.equal(ctx.memory.length,40);assert.equal(ctx.memory[0].text,'记忆5');assert.equal(ctx.memory.at(-1).text,'记忆44');
+// 目标、储蓄净额（含取出与起始存款）、最近记录与今日经验
+assert.equal(ctx.goals.length,2);assert.equal(ctx.goals[0].progress,20);assert.equal(ctx.goals[1].progress,2000);
+assert.equal(ctx.goals[1].progress,gameProgress(ctxState,ctxGoals[1]),'储蓄净值复用 progress');
+assert.deepEqual(ctx.savings,[{title:'旅行基金',net:2000}],'储蓄只含元目标且扣除取出与起始存款');
+assert.equal(ctx.recentLogs.length,20,'最近记录最多 20 条');
+assert.equal(ctx.recentLogs[0].title,'记录7');assert.equal(ctx.recentLogs.at(-1).title,'读完一章');
+assert.ok(ctx.recentLogs.every(l=>l.title!=='不该出现的撤销记录'),'已撤销的记录不发送');
+assert.ok(ctx.recentLogs.every((l,i,a)=>i===0||a[i-1].date<=l.date),'记录按时间正序返回');
+assert.equal(ctx.todayXp,60,'今日经验只算当天未撤销记录');
+assert.equal(ctx.level,gameLevel(ctxState));
+console.log('PASS 上下文隐私白名单、超量裁剪、撤销记录不发送、净额与今日经验口径');
