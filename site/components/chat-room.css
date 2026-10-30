@@ -1,4 +1,4 @@
-/* 记录官对话区：沿用 assistant-scene.css / character-2d.css 的深紫底与 #eee6ff 文字。 */
+﻿/* 记录官对话区：沿用 assistant-scene.css / character-2d.css 的深紫底与 #eee6ff 文字。 */
 .chat-room{
   display:flex;
   flex-direction:column;
@@ -414,7 +414,7 @@
 
 @media(max-width:600px){
   .chat-room{padding:12px;border-radius:20px;gap:10px}
-  .chat-room__stream{max-height:280px}
+  .chat-room__stream{max-height:220px}
   .chat-room__bubble,.chat-room__noted{max-width:92%}
   .chat-room__send{padding:0 12px}
   .chat-room__record{padding:9px 10px}
@@ -422,18 +422,18 @@
   /* 手机上正文与按钮文字整体抬到 13px 以上。桌面那套 11.5~12.5px 是配大屏的，
      原样搬到 390 宽的屏上就是「所有内容都很小」——字小到要凑近看，
      顺带让「算，记进职业」「就记着」这类要点的按钮也小得难点中。 */
-  .chat-room__bubble{font-size:15px;line-height:1.75}
-  .chat-room__noted{font-size:13.5px;padding:9px 12px}
-  .chat-room__record-summary{font-size:14.5px}
-  .chat-room__record-meta{font-size:13px}
-  .chat-room__day-sep{font-size:12.5px}
-  .chat-room__empty{font-size:14px}
-  .chat-room__hint,.chat-room__consent-details{font-size:13px}
-  .chat-room__consent{font-size:13.5px}
-  .chat-room__quick-reply{font-size:14px;min-height:44px}
+  .chat-room__bubble{font-size:16px;line-height:1.7}
+  .chat-room__noted{font-size:15px;padding:9px 12px}
+  .chat-room__record-summary{font-size:15px}
+  .chat-room__record-meta,.chat-room__badge{font-size:14px}
+  .chat-room__day-sep{font-size:13.5px}
+  .chat-room__empty{font-size:15px}
+  .chat-room__hint,.chat-room__consent-details{font-size:14px}
+  .chat-room__consent{font-size:14px}
+  .chat-room__quick-reply{font-size:14.5px;min-height:44px}
   /* 触控目标：40px 以下是手指点不准的尺寸，这几个是本页唯一的操作入口。 */
   .chat-room__claim,.chat-room__keep,.chat-room__undo,.chat-room__delete{font-size:14px;min-height:44px}
   .chat-room__export{font-size:14px;min-height:44px}
-  .chat-room__edit-open{font-size:13px;min-height:36px}
+  .chat-room__edit-open{font-size:14px;min-height:40px}
   .chat-room__edit-save,.chat-room__edit-cancel{font-size:14px;min-height:44px}
 }

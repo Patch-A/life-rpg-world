@@ -8,6 +8,7 @@ import {Character2D,CharacterPreview} from './character-2d';
 import {characterGender,canWear,adultOutfitName} from '@/lib/appearance';
 import {adultDate} from '@/lib/birthday';
 import {newId} from '@/lib/ids';
+import {timeoutSignal} from '@/lib/abort';
 export type Mutate=(action:Action)=>Promise<boolean>;
 const photoURL=(id:string)=>'/api/photos?id='+encodeURIComponent(id);
 function pretty(value:number){return Number(value.toFixed(2)).toLocaleString();}
@@ -19,7 +20,7 @@ async function compactPhoto(file:File){
 }
 export function PhotoPicker({ids,onChange,onBusy,disabled}:{ids:string[];onChange:(ids:string[])=>void;onBusy:(v:boolean)=>void;disabled:boolean}){
  const [uploading,setUploading]=useState(false),[error,setError]=useState(''),[login,setLogin]=useState(false);const ref=useRef<HTMLInputElement>(null);
- async function upload(file?:File){if(!file)return;setError('');setUploading(true);onBusy(true);try{const blob=await compactPhoto(file);const r=await fetch('/api/photos',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:blob,signal:AbortSignal.timeout(30000)});const result=await readJSON<{id:string}>(r);onChange([...ids,result.id]);setLogin(false);}catch(e){setLogin(e instanceof ApiError&&e.login);setError(requestError(e));}finally{setUploading(false);onBusy(false);if(ref.current)ref.current.value='';}}
+ async function upload(file?:File){if(!file)return;setError('');setUploading(true);onBusy(true);try{const blob=await compactPhoto(file);const r=await fetch('/api/photos',{method:'POST',headers:{'Content-Type':'image/jpeg'},body:blob,signal:timeoutSignal(30000)});const result=await readJSON<{id:string}>(r);onChange([...ids,result.id]);setLogin(false);}catch(e){setLogin(e instanceof ApiError&&e.login);setError(requestError(e));}finally{setUploading(false);onBusy(false);if(ref.current)ref.current.value='';}}
  return <div className="photo-field"><div className="row"><span>照片凭证 <small className="optional">最多3张 · 仅自己可见</small></span>{ids.length<3&&<button type="button" className="secondary compact" disabled={disabled||uploading} onClick={()=>ref.current?.click()}><Camera size={17}/>{uploading?'上传中…':'添加照片'}</button>}</div><input ref={ref} type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" className="sr-only" aria-label="选择记录照片" onChange={e=>upload(e.target.files?.[0])}/><div className="record-photos">{ids.map((id,i)=><div className="photo-preview" key={id}><img src={photoURL(id)} alt={`记录照片${i+1}`}/><button type="button" aria-label={`从本条记录移除照片${i+1}`} disabled={disabled||uploading} onClick={()=>onChange(ids.filter(x=>x!==id))}><X size={16}/></button></div>)}</div>{error&&<p className="error" role="alert">{error}</p>}{login&&<a className="primary" href="/signin-with-chatgpt?return_to=%2F" target="_top">重新登录后上传</a>}<p className="note">照片是记录凭证，不代表平台已核实行为。避免上传账号、余额等不必要的信息。</p></div>;
 }
 export {useDraft} from './use-draft';

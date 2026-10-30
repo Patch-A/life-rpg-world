@@ -8,6 +8,8 @@
 .rpg-character2d{position:relative;isolation:isolate;overflow:hidden;width:100%;min-width:0;border:1px solid #a98ec538;border-radius:24px;color:#eee6ff;background:radial-gradient(ellipse at 50% 45%,#4d3c7270,transparent 70%),linear-gradient(150deg,#201e36,#11182a)}
 .rpg-character2d__scene{position:relative;height:430px;overflow:hidden;isolation:isolate}
 .rpg-character2d__badge{position:absolute;top:14px;left:14px;z-index:3;display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #b3a0d133;border-radius:20px;background:#201c35d9;font-size:11px;letter-spacing:.06em;color:#d2bfe8}
+/* 11px 是配大屏的刻度；手机上这是「星光营地」这种要读的中文，抬到 14px。 */
+@media(max-width:760px){.rpg-character2d__badge{font-size:14px;padding:5px 9px}}
 .rpg-character2d__halo{position:absolute;top:42%;left:50%;width:230px;height:230px;border:1px solid #b29bd333;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 30px #b29bd307,0 0 0 31px #b29bd314;pointer-events:none}
 .rpg-character2d__pedestal{position:absolute;bottom:10px;left:50%;width:240px;height:32px;transform:translateX(-50%);border:1px solid #b4a0d638;border-radius:50%;background:#ac89d512;box-shadow:0 0 26px #ae8bcc15}
 .rpg-character2d__actor{position:absolute;z-index:2;inset:34px 16px 14px;transform-origin:50% 7%;transition:transform .45s ease;pointer-events:none}

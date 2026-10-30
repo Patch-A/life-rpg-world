@@ -43,13 +43,16 @@ const mediaBlocks=(css,mark)=>{
 const mobile=mediaBlocks(globals,760);
 assert.ok(mobile.trim().length>0,'globals.css 必须存在 760px 断点');
 
-// 从声明块里取一条属性的数值，换算成 px（1rem = 16px）。取不到返回 NaN——
+// 从声明块里取一条属性的数值，换算成 px。取不到返回 NaN——
 // NaN 和任何阈值比较都是 false，断言会红，不会静默通过。
-const pxOf=(block,prop)=>{
+// rem 的基准必须按断点传进来：手机断点把 html 根字号改成了 17px，
+// 同一句 `.8rem` 在桌面是 12.8px、在手机是 13.6px。按 16 换算会低估手机实测值，
+// 把「已经够大」误判成不达标。
+const pxOf=(block,prop,remBase=16)=>{
   const m=block.match(new RegExp(`(?:^|[;{\\s])${prop}:\\s*([\\d.]+)(px|rem)`));
   if(!m)return NaN;
   const n=Number(m[1]);
-  return m[2]==='rem'?n*16:n;
+  return m[2]==='rem'?n*remBase:n;
 };
 // 在某个断点块里找出选择器对应的所有声明块，按出现顺序返回。
 // 一个选择器在一个断点里可以出现多次（`.a,.b{max-width}` 在前、`.a{font-size}` 在后），
@@ -120,16 +123,18 @@ assert.equal(/window\.confirm/.test(memTsx),false,'不得用 window.confirm 替�
 const chatCss=source('components/chat-room.css');
 const chatMobile=mediaBlocks(chatCss,600);
 assert.ok(chatMobile.trim().length>0,'chat-room.css 必须有 600px 断点：聊天是主界面，手机字号得单独定');
+// 手机断点内的 rem 基准是 17px（见下面的根字号断言），不是桌面的 16px。
+const MOBILE_REM=17;
 const readPx=(css,selector,prop,label)=>{
   const blocks=rulesIn(css,selector);
   assert.ok(blocks.length>0,`${label}：断点里必须有 ${selector} 规则`);
   // 层叠里最后一条声明生效，所以取「声明了这条属性的最后一块」。
-  const withProp=blocks.filter(b=>Number.isFinite(pxOf(b,prop)));
+  const withProp=blocks.filter(b=>Number.isFinite(pxOf(b,prop,MOBILE_REM)));
   assert.ok(withProp.length>0,`${label}：${selector} 必须显式写出 ${prop}，否则继承桌面值就是小字`);
-  return pxOf(withProp[withProp.length-1],prop);
+  return pxOf(withProp[withProp.length-1],prop,MOBILE_REM);
 };
 const bubbleFs=readPx(chatMobile,'.chat-room__bubble','font-size','聊天气泡');
-assert.ok(bubbleFs>=15,`手机聊天气泡正文必须 ≥15px，实际 ${bubbleFs}px`);
+assert.ok(bubbleFs>=16,`手机聊天气泡正文必须 ≥16px，实际 ${bubbleFs}px`);
 for(const sel of ['.chat-room__claim','.chat-room__keep','.chat-room__undo','.chat-room__delete']){
   const fs=readPx(chatMobile,sel,'font-size','记录上的操作按钮');
   assert.ok(fs>=14,`手机上 ${sel} 文字必须 ≥14px，实际 ${fs}px`);
@@ -139,10 +144,10 @@ for(const sel of ['.chat-room__claim','.chat-room__keep','.chat-room__undo','.ch
 const exportH=readPx(chatMobile,'.chat-room__export','min-height','导出按钮');
 assert.ok(exportH>=44,`手机上导出按钮触控高度必须 ≥44px，实际 ${exportH}px`);
 const metaFs=readPx(chatMobile,'.chat-room__record-meta','font-size','记录元信息');
-assert.ok(metaFs>=13,`手机记录元信息必须 ≥13px，实际 ${metaFs}px`);
+assert.ok(metaFs>=14,`手机记录元信息必须 ≥14px，实际 ${metaFs}px`);
 const sceneMobileCss=mediaBlocks(source('components/assistant-scene.css'),600);
 const lineFs=readPx(sceneMobileCss,'.assistant-scene__bubble','font-size','记录官的话');
-assert.ok(lineFs>=13.5,`手机上记录官的话必须 ≥13.5px，实际 ${lineFs}px`);
+assert.ok(lineFs>=15,`手机上记录官的话必须 ≥15px，实际 ${lineFs}px`);
 // 台词超过 3 行时，原来 max-height+overflow:auto 会把句子切一半、还给一条滚动条；
 // 完整台词本来就出现在下方聊天流里，这里只该是预览，用省略号收尾。
 assert.ok(!/\.assistant-scene__bubble\{[^}]*overflow:\s*auto/.test(sceneMobileCss),'记录官气泡不得在手机上做内部滚动：会切半句并冒出滚动条');
@@ -156,8 +161,17 @@ assert.ok(lineClamp.includes('overflow:hidden'),'台词截断必须配合 overfl
 for(const sel of ['.chapter-tag','.level-pill','.xp-strip','.task-meta .reward','.bag-grid small','.save-foot','.private-label',
   '.eyebrow','.region-progress','.node-state','.journey-node small','.skill-row small']){
   const fs=readPx(mobile,sel,'font-size',`手机标签 ${sel}`);
-  assert.ok(fs>=12.5,`手机上 ${sel} 必须 ≥12.5px，实际 ${fs}px`);
+  assert.ok(fs>=13.4,`手机上 ${sel} 必须 ≥13.4px，实际 ${fs}px`);
 }
+// 手机不是「桌面等比缩小」：根字号得按手机的阅读距离重新定。
+// 12.5px 那个门槛是我上一轮定的，实测站上仍然是「要凑近看」——
+// 桌面把标签写成 .65~.82rem，乘 16px 只有 10.4~13.1px。抬根字号才是根因修复，
+// 逐个类改字号只是补丁：新写的 .7rem 会照样掉回去。
+const mobileRoot=mediaBlocks(globals,760);
+const rootSize=[...mobileRoot.matchAll(/(?:^|\})html\{([^}]*)\}/g)].map(m=>m[1]).find(b=>b.includes('font-size'));
+assert.ok(rootSize,`手机断点必须显式重定当前 html 根字号，实际没找到：${mobileRoot.slice(0,80)}`);
+const rootPx=Number((rootSize.match(/font-size:\s*([\d.]+)px/)||[])[1]);
+assert.ok(rootPx>=17,`手机根字号必须 ≥17px（桌面 16px 那套搬到 390 宽的屏上就是小字），实际 ${rootPx}px`);
 // 桌面字号不得被顺手改掉：抬字号只发生在手机断点里。
 const deskMeta=nthBlock(chatCss,'.chat-room__record-meta{');
 assert.ok(deskMeta.includes('11.5px'),'桌面记录元信息字号应保持 11.5px：手机字号只在 600px 断点里抬');
