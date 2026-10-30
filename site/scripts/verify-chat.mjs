@@ -554,3 +554,100 @@ console.log('PASS 非 DeepSeek 端点：response_format 自动降级、URL 与 t
  }finally{process.env.NODE_ENV=prevEnv;delete globalThis.__chatDB;delete globalThis.__chatEnv;defSqlite.close();}
  console.log('PASS 默认模型按路由区分：行动助手 deepseek-flash、显式配置优先');
 }
+// ---- 导出当天 Markdown：格式骨架、只导当天、今日口径 ----
+// 模块替换：export-journal.ts 内部 import './game'，必须换成脚本里已有的 game 数据 URL，
+// 否则会 ERR_UNSUPPORTED_RESOLVE_REQUEST（verify-agent 曾因此坏了两个任务）。
+const exportJournalUrl=url(source('lib/export-journal.ts').replaceAll("from './game'",`from '${game}'`));
+const {journalMarkdown,exportJournal}=await import(exportJournalUrl);
+const {completedActions:expCompleted}=await import(game);
+const expDate='2026-10-30';
+const expMemory='独一无二的记忆事实：他在写一本关于潮汐的书';
+const expState={...blank(),
+ goals:[{id:'g1',title:'读书',domain:'mind',target:300,unit:'分钟',deadline:'',paused:false,createdAt:''}],
+ tasks:[
+  {id:'t1',title:'读一章',domain:'mind',target:30,unit:'分钟',repeat:true,goalId:'g1',archived:false},
+  {id:'t2',title:'跑步',domain:'health',target:10,unit:'分钟',repeat:false,goalId:'',archived:false},
+  {id:'t3',title:'昨天跑步',domain:'health',target:10,unit:'分钟',repeat:false,goalId:'',archived:false},
+ ],
+ logs:[
+  // 同一天同一行动拆成两条：完成项按「达标一次」算 1，记录行却有 2 条，用来区分口径
+  {id:'l1',taskId:'t1',title:'读一章',domain:'mind',value:15,unit:'分钟',goalId:'g1',xp:30,date:expDate,at:expDate+'T10:40:00.000Z',undone:false},
+  {id:'l2',taskId:'t1',title:'读一章',domain:'mind',value:15,unit:'分钟',goalId:'g1',xp:0,date:expDate,at:expDate+'T10:50:00.000Z',undone:false},
+  {id:'l3',taskId:'t2',title:'跑步',domain:'health',value:10,unit:'分钟',goalId:'',xp:0,date:expDate,at:expDate+'T11:05:00.000Z',undone:false},
+  {id:'l4',taskId:'t3',title:'昨天那条',domain:'health',value:10,unit:'分钟',goalId:'',xp:30,date:'2026-10-29',at:'2026-10-29T11:05:00.000Z',undone:false},
+  {id:'l5',taskId:'t1',title:'撤销的那条',domain:'mind',value:15,unit:'分钟',goalId:'g1',xp:30,date:expDate,at:expDate+'T12:00:00.000Z',undone:true},
+ ],
+ journal:[
+  {id:'j1',date:expDate,at:'2026-10-30T10:40:00.000Z',text:'今天看完了第三章，卡在并发这一节',summary:'看完第三章，卡在并发',domain:'mind',tags:[],posture:'companion',runId:'r1',status:'pending'},
+  {id:'j2',date:expDate,at:'2026-10-30T11:05:00.000Z',text:'有点累，但比昨天好',summary:'有点累，但比昨天好',tags:[],posture:'companion',runId:'r1',status:'kept'},
+  {id:'j3',date:'2026-10-29',at:'2026-10-29T09:00:00.000Z',text:'昨天的原话',summary:'昨天的记录摘要',domain:'career',tags:[],posture:'companion',runId:'r0',status:'kept'},
+ ],
+ chat:[
+  {id:'c1',date:expDate,at:'2026-10-30T10:35:00.000Z',role:'user',text:'今天蛮累的，想早点睡',posture:'companion'},
+  {id:'c2',date:expDate,at:'2026-10-30T10:35:05.000Z',role:'assistant',text:'听起来你需要先休息一下',posture:'companion'},
+  {id:'c3',date:'2026-10-29',at:'2026-10-29T09:00:00.000Z',role:'user',text:'昨天的对话',posture:'companion'},
+  {id:'c4',date:'2026-10-29',at:'2026-10-29T09:00:05.000Z',role:'assistant',text:'昨天的回复',posture:'companion'},
+ ],
+ memory:[{id:'m1',text:expMemory,kind:'fact',firstSeen:'2026-10-01T00:00:00.000Z',lastSeen:'2026-10-30T00:00:00.000Z',weight:1}],
+};
+const expMd=journalMarkdown(expState,expDate);
+// 骨架：YAML 头、三节标题、日期与来源
+assert.ok(expMd.startsWith('---\ndate: '),'必须以 YAML 头开头');
+assert.ok(expMd.includes('date: '+expDate));
+assert.ok(expMd.includes('source: life-rpg-recordkeeper'));
+assert.ok(expMd.includes('## 记录')&&expMd.includes('## 对话摘录')&&expMd.includes('## 今日'));
+assert.ok(expMd.includes('# 10月30日'),'标题用「月日」');
+// 不允许出现 JS 值泄露
+assert.equal(expMd.includes('undefined'),false,'导出不得出现 undefined');
+assert.equal(expMd.includes('[object Object]'),false,'导出不得出现对象字面量');
+assert.equal(expMd.includes('mood'),false,'V1 没有情绪数据，不得输出 mood 行');
+// 记录行：上海时区 24 小时制、领域名、summary（不是原话 text）
+assert.ok(expMd.includes('- 18:40 · 认知 · 看完第三章，卡在并发'),'记录行 = 时刻 · 领域 · 摘要');
+assert.ok(expMd.includes('- 19:05 · 状态 · 有点累，但比昨天好'),'没有 domain 的记录用「状态」');
+assert.equal(expMd.includes('今天看完了第三章'),false,'记录行用 summary，不用原话 text');
+// 对话摘录用 `> ` 引用，用户/助手分别标注「我 / 它」
+assert.ok(expMd.includes('> 我：今天蛮累的，想早点睡'));
+assert.ok(expMd.includes('> 它：听起来你需要先休息一下'));
+// 边界：只导当天，不含其他日期、不含 memory、不含撤销记录
+assert.equal(expMd.includes('昨天的记录摘要'),false,'不得导出其他日期的记录');
+assert.equal(expMd.includes('昨天的对话'),false,'不得导出其他日期的对话');
+assert.equal(expMd.includes('2026-10-29'),false,'不得出现其他日期');
+assert.equal(expMd.includes(expMemory),false,'导出绝不含 memory 事实');
+assert.equal(expMd.includes('撤销的那条'),false,'撤销的记录不导出');
+// 今日口径：完成项 = completedActions（达标一次算 1），经验 = 当日未撤销 log 的 xp 之和
+const expDayLogs=expState.logs.filter(l=>!l.undone&&l.date===expDate);
+const expN=expCompleted(expState,{date:expDate}),expM=expDayLogs.reduce((n,l)=>n+l.xp,0);
+assert.equal(expDayLogs.length,3,'构造数据：当天 3 条记录行');
+assert.equal(expN,2,'构造数据：完成 2 项（与记录条数不同，能抓口径错误）');
+assert.equal(expM,30);
+assert.ok(expMd.includes(`完成 ${expN} 项 · 经验 +${expM}`),'今日行须与 completedActions / 当日 xp 一致');
+assert.equal(expMd.includes('完成 3 项'),false,'完成项不能退化成当天记录条数');
+// 空的一天：不崩、记录节给提示、没有对话就整节略去、今日仍写 0
+const emptyMd=journalMarkdown(blank(),'2026-10-30');
+assert.ok(emptyMd.includes('今天还没有记录'));
+assert.ok(emptyMd.includes('## 记录')&&emptyMd.includes('## 今日'));
+assert.equal(emptyMd.includes('## 对话摘录'),false,'当天没有对话就整节略去');
+assert.ok(emptyMd.includes('完成 0 项 · 经验 +0'));
+assert.equal(emptyMd.includes('undefined'),false);
+assert.ok(emptyMd.startsWith('---\ndate: 2026-10-30\nsource: life-rpg-recordkeeper\n---\n\n# 10月30日'));
+// 对话摘录最多 8 条，超量取当天最近 8 条并保持时间正序
+const manyTurns={...blank(),chat:Array.from({length:10},(_,i)=>({id:'x'+i,date:expDate,at:'2026-10-30T0'+i+':00:00.000Z',role:i%2?'assistant':'user',text:'第'+i+'条'}))};
+const manyMd=journalMarkdown(manyTurns,expDate);
+assert.equal((manyMd.match(/^> /gm)||[]).length,8,'对话摘录最多 8 条');
+assert.equal(manyMd.includes('第1条'),false,'超量时保留最近的 8 条');
+assert.equal(manyMd.includes('第2条'),true);
+console.log('PASS 导出格式骨架、只导当天、领域回退与今日口径');
+// 下载：文件名、MIME、内容与纯函数一致；不真的点浏览器链接
+const oldDoc=globalThis.document,oldCreate=URL.createObjectURL,oldRevoke=URL.revokeObjectURL,oldSetTimeout=globalThis.setTimeout;
+let dlBlob,dlDownload,dlClicked=false;const revoked=[];
+URL.createObjectURL=b=>{dlBlob=b;return 'blob:stub';};
+URL.revokeObjectURL=u=>revoked.push(u);
+globalThis.document={createElement:()=>({set href(v){},get href(){return '';},set download(v){dlDownload=v;},get download(){return dlDownload;},click(){dlClicked=true;}})};
+globalThis.setTimeout=fn=>{fn();return 0;};
+try{exportJournal(expState,expDate);}finally{globalThis.document=oldDoc;URL.createObjectURL=oldCreate;URL.revokeObjectURL=oldRevoke;globalThis.setTimeout=oldSetTimeout;}
+assert.equal(dlDownload,`${expDate}-记录官.md`,'下载文件名');
+assert.equal(dlClicked,true,'必须触发下载点击');
+assert.equal(dlBlob.type,'text/markdown;charset=utf-8','MIME 类型');
+assert.equal(await dlBlob.text(),journalMarkdown(expState,expDate),'下载内容与纯函数一致');
+assert.deepEqual(revoked,['blob:stub'],'下载后释放 blob URL');
+console.log('PASS 导出下载文件名、MIME 与内容');
