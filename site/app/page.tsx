@@ -58,6 +58,9 @@ export default function Page(){
  // 记录官：姿态、当前台词、是否朗读。台词顺序固定为「最后一个 assistant 轮 → 开场白」，onLine 只覆盖不再改写历史。
  const [posture,setPosture]=useState<'companion'|'counselor'>('companion');const [line,setLine]=useState<string|null>(null);const [speaking,setSpeaking]=useState(false);
  const todayRecords=s?s.journal.filter(j=>j.date===today).length:0;const lastAssistantText=[...(s?.chat??[])].reverse().find(t=>t.role==='assistant')?.text||'';const assistantLine=line??(lastAssistantText||openingLine(posture,today,todayRecords,cnHour()));
+ // speaking 是「这一次要读」的一次性信号，不是常驻状态：置真后立刻复位。
+ // 否则 AssistantScene 卸载（切页）回来时 lastRead 已丢，speaking 仍为真就会没人点「重读」也自己念一遍。
+ useEffect(()=>{if(!speaking)return;const timer=setTimeout(()=>setSpeaking(false),0);return()=>clearTimeout(timer);},[speaking]);
  async function load(background=false){
   if(background&&busyRef.current)return;const epoch=++loadEpoch.current;loadFlight.current?.abort();const controller=new AbortController();loadFlight.current=controller;const timeout=setTimeout(()=>controller.abort(),20000);if(!background)setError('');
   try{const r=await fetch('/api/game',{credentials:'same-origin',cache:'no-store',signal:controller.signal});const d=await readJSON<{state:Game;revision:number}>(r);if(!d.state||!Array.isArray(d.state.logs)||!Number.isInteger(d.revision))throw Error('返回的存档格式异常，请重新加载');if(epoch!==loadEpoch.current||busyRef.current)return;setData(old=>old&&old.revision>d.revision?old:d);lastLoaded.current=Date.now();setAuth(false);setConflict(false);setError('');}

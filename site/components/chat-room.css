@@ -131,6 +131,10 @@
   accent-color:#8f6dd8;
 }
 .chat-room__hint{margin:0;color:#b7a9d9;font-size:11.5px}
+.chat-room__consent-details{margin-left:26px;color:#b7a9d9;font-size:11.5px}
+.chat-room__consent-details summary{cursor:pointer;color:#c6a6ed;padding:2px 0;border-radius:6px;outline-offset:2px}
+.chat-room__consent-details summary:hover{color:#e8dcf8}
+.chat-room__consent-details p{margin:4px 0 0;line-height:1.6}
 .chat-room__compose{
   display:flex;
   gap:8px;

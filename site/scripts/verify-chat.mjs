@@ -832,3 +832,62 @@ assert.ok(/entry\.status!==['"]claimed['"]/.test(chatRoom),'已转为行动的�
 assert.ok(chatRoom.includes('disabled={locked||!draft.trim()}'),'空摘要必须禁用保存');
 assert.ok(chatRoom.includes('maxLength={200}'),'摘要输入必须与 reducer 的上限一致');
 console.log('PASS 对话区结构冒烟：503 让助手说话、摘要可改且 claimed 不给入口');
+// ---- 首页结构：page.tsx 没有渲染测试宿主，只能做源码断言；但每条都必须能真的变红 ----
+const page=source('app/page.tsx');
+// 先确认标记存在，再断言内容：标记缺失时 indexOf 返回 -1 会让比较恒真。
+const assistantMount=[...page.matchAll(/<ActionAssistant[\s\S]*?\/>/g)];
+assert.equal(assistantMount.length,1,'ActionAssistant 必须只挂载一次');
+const todayBranch=page.indexOf("{view==='today'&&<><TodayPanel");
+const tasksBranch=page.indexOf("{view==='tasks'&&<div className=\"tasks-layout\">");
+const growthBranch=page.indexOf("{view==='growth'&&<div className=\"growth-layout\">");
+assert.ok(todayBranch>-1,"必须保留今天的对话优先块");
+assert.ok(tasksBranch>-1,"必须保留 view==='tasks' 目标页块，ActionAssistant 就挂在这里");
+assert.ok(growthBranch>tasksBranch,'成长页块必须留在目标页块之后，才能界定任务块的范围');
+assert.equal(page.includes("view==='today'||view==='tasks'"),false,"ActionAssistant 不得回到 today||tasks 的挂载条件");
+const assistantMountAt=page.indexOf('<ActionAssistant');
+assert.ok(assistantMountAt>-1,'必须仍然挂载 ActionAssistant');
+assert.ok(assistantMountAt>todayBranch,'ActionAssistant 不得挂在今天页分支内');
+assert.ok(assistantMountAt>tasksBranch,'ActionAssistant 必须挂在目标页分支内，不得挪回今天页');
+assert.ok(assistantMountAt<growthBranch,'ActionAssistant 必须收在目标页分支内，不得提到无条件渲染');
+// 任务块内部的大括号是配平的，挂载点之前应当恰好还差一个未闭合的 `{`（就是 `{view==='tasks'&&` 那个）。
+// 组件被挪到分支外面渲染时差值是 0，断言立刻变红；只看位置先后是抓不到这种情况的。
+const branchSeg=page.slice(tasksBranch,assistantMountAt);
+let branchDepth=0;
+for(const ch of branchSeg){if(ch==='{')branchDepth++;else if(ch==='}')branchDepth--;}
+assert.equal(branchDepth,1,"ActionAssistant 必须嵌在 view==='tasks' 分支的 JSX 内部，不能在分支外单独渲染");
+// onReplay 只能通知，绝不能改 line：一旦回填，朗读 effect 与重读会互相触发。
+// 真正的绑定在 today-panel 里（page.tsx 目前不传 onReplay），所以先确认恰好绑定一次再断言内容。
+const todayPanel=source('components/today-panel.tsx');
+const replayBind=[...todayPanel.matchAll(/onReplay=\{[^}]*\}/g)];
+assert.equal(replayBind.length,1,'首页必须给 onReplay 传且只传一个回调');
+assert.ok(/onReplay=\{\(\)=>undefined\}/.test(todayPanel),'onReplay 必须是空回调：重读只由 AssistantScene 自己负责');
+assert.equal(replayBind.some(m=>/setLine|onLine|onPosture/.test(m[0])),false,'onReplay 绝不能回填 line 或姿态');
+// 朗读是一次性信号：onLine 置真后必须复位，否则切页回来会未经点击自动重读。
+assert.ok(page.indexOf('setSpeaking(true)')>-1,'onLine 仍要把 speaking 置真，这一次才朗读');
+const speakingOff=page.indexOf('setSpeaking(false)');
+assert.ok(speakingOff>-1,'speaking 必须复位：缺 setSpeaking(false) 时切页回来会自动重读');
+// 复位还必须在依赖 speaking 的 useEffect 里真正被执行：写进一个没人调用的函数等于没写。
+const effectBefore=page.lastIndexOf('useEffect(',speakingOff);
+const effectAfter=page.indexOf('},[speaking])',speakingOff);
+assert.ok(effectBefore>-1&&effectAfter>speakingOff&&effectAfter-effectBefore<400,'setSpeaking(false) 必须写在依赖 speaking 的 useEffect 里，而不是别处的死代码');
+console.log('PASS 首页结构：ActionAssistant 只挂目标页、onReplay 不改 line、speaking 一次性复位');
+// ---- 同意行「主句 + 折叠详情」：主句仍要说清对话与记录会发出去，清单默认收起 ----
+const consentAt=chatRoom.indexOf('className="chat-room__consent"');
+assert.ok(consentAt>-1,'必须保留同意行容器 chat-room__consent');
+const consentEnd=chatRoom.indexOf('</div>',consentAt);
+assert.ok(consentEnd>consentAt,'同意行容器必须闭合');
+const consentBlock=chatRoom.slice(consentAt,consentEnd);
+const detailsTags=[...consentBlock.matchAll(/<details[^>]*>/g)];
+assert.equal(detailsTags.length,1,'同意行必须有且只有一个折叠详情');
+assert.ok(consentBlock.includes('<summary>具体发送什么</summary>'),'折叠区入口必须是「具体发送什么」');
+assert.equal(detailsTags.some(m=>/\bopen\b/.test(m[0])),false,'折叠详情必须默认收起，不能加 open');
+const consentLabels=[...consentBlock.matchAll(/<label className="chat-room__consent-item">([\s\S]*?)<\/label>/g)];
+assert.equal(consentLabels.length,2,'同意行必须保留两个勾选框');
+assert.ok(consentLabels[0][1].includes('我已满 18 岁'),'第一条勾选框是「我已满 18 岁」');
+const mainSentence=consentLabels[1][1];
+assert.ok(mainSentence.includes('同意'),'第二条勾选框必须以「同意」开头，说清这是授权');
+assert.ok(mainSentence.includes('对话')&&mainSentence.includes('记录'),'同意主句必须说明对话和记录都会发送给模型');
+assert.equal(/照片|生日|纪念/.test(mainSentence),false,'披露清单已收进折叠区，不占主句');
+assert.ok(consentBlock.indexOf('照片、生日、人生纪念不会发送')>consentBlock.indexOf('<details'),'不发送的照片、生日、人生纪念仍须在折叠区内保留');
+console.log('PASS 同意行主句说清对话与记录、清单进默认收起的 details');
+

@@ -207,7 +207,12 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
     {/* 环境同意只出现一次：不是弹窗、不遮挡助手，也不挡输入，只挡发送按钮。 */}
     {!consentDone&&<div className="chat-room__consent">
       <label className="chat-room__consent-item"><input type="checkbox" checked={adultOk} onChange={e=>setAdultOk(e.target.checked)}/>我已满 18 岁</label>
-      <label className="chat-room__consent-item"><input type="checkbox" checked={consentOk} onChange={e=>setConsentOk(e.target.checked)}/>同意把对话原文（最近 40 条）、长期记忆（最多 40 条）、目标与近期行动记录、储蓄进度发送给模型生成回复（照片、生日、人生纪念不会发送）</label>
+      <label className="chat-room__consent-item"><input type="checkbox" checked={consentOk} onChange={e=>setConsentOk(e.target.checked)}/>同意把对话和记录发给模型生成回复</label>
+      {/* 清单默认收起：首屏只交代「对话和记录会发出去」，细节留给愿意细看的人。summary 自带键盘与读屏支持。 */}
+      <details className="chat-room__consent-details">
+        <summary>具体发送什么</summary>
+        <p>对话原文（最近 40 条）、长期记忆（最多 40 条）、目标与近期行动记录、储蓄进度。照片、生日、人生纪念不会发送。</p>
+      </details>
       {!canSend&&<p className="chat-room__hint">勾选以上两项后就能开始对话；手动记录一直可用。</p>}
     </div>}
 
