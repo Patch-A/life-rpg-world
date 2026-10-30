@@ -205,6 +205,9 @@ const ctxLogs=[
  {id:'save-in',taskId:'',title:'旅行基金',domain:'wealth',value:1200,unit:'元',goalId:'g-save',xp:30,date:ctxToday,at:'2026-10-30T08:00:00.000Z',undone:false,direction:'deposit',photos:['photo_00000000-0000-0000-0000-000000000001']},
  {id:'save-out',taskId:'',title:'旅行基金',domain:'wealth',value:200,unit:'元',goalId:'g-save',xp:0,date:'2026-10-27',at:'2026-10-27T08:00:00.000Z',undone:false,direction:'withdraw'},
  {id:'undone',taskId:'',title:'不该出现的撤销记录',domain:'mind',value:5,unit:'分钟',goalId:'',xp:30,date:ctxToday,at:'2026-10-30T10:00:00.000Z',undone:true},
+ // 同一天（09-25）的上午与晚间两条：日期相同、at 不同，用来证明排序按 at 而非 date；数组里上午在前，若误按 date 排序会被发现
+ {id:'same-morning',taskId:'',title:'同日上午',domain:'health',value:1,unit:'次',goalId:'',xp:0,date:'2026-09-25',at:'2026-09-25T06:00:00.000Z',undone:false},
+ {id:'same-night',taskId:'',title:'同日晚间',domain:'health',value:1,unit:'次',goalId:'',xp:0,date:'2026-09-25',at:'2026-09-25T22:00:00.000Z',undone:false},
  ...ctxFillers,
 ];
 const ctxMemory=Array.from({length:45},(_,i)=>({id:'m'+i,text:'记忆'+i,kind:['fact','preference','situation'][i%3],firstSeen:'2026-09-01T00:00:00.000Z',lastSeen:'2026-09-01T00:00:00.000Z',weight:1}));
@@ -242,9 +245,35 @@ assert.equal(ctx.goals.length,2);assert.equal(ctx.goals[0].progress,20);assert.e
 assert.equal(ctx.goals[1].progress,gameProgress(ctxState,ctxGoals[1]),'储蓄净值复用 progress');
 assert.deepEqual(ctx.savings,[{title:'旅行基金',net:2000}],'储蓄只含元目标且扣除取出与起始存款');
 assert.equal(ctx.recentLogs.length,20,'最近记录最多 20 条');
-assert.equal(ctx.recentLogs[0].title,'记录7');assert.equal(ctx.recentLogs.at(-1).title,'读完一章');
+assert.equal(ctx.recentLogs[0].title,'记录9');assert.equal(ctx.recentLogs.at(-1).title,'读完一章');
 assert.ok(ctx.recentLogs.every(l=>l.title!=='不该出现的撤销记录'),'已撤销的记录不发送');
+// 排序区分度：半天/晚间同日，必须按 at 升序（返回对象没有 at 字段，只能靠 title 先后断言）
+const orderTitles=ctx.recentLogs.map(l=>l.title);
+const morningAt=orderTitles.indexOf('同日上午'),nightAt=orderTitles.indexOf('同日晚间');
+assert.ok(morningAt>=0&&nightAt>=0,'同日两条都应落在最近 20 条窗口内');
+assert.ok(morningAt<nightAt,'同一天内须按 at 升序：上午在晚间之前');
+assert.equal(ctx.recentLogs[morningAt].date,'2026-09-25');
+assert.equal(ctx.recentLogs[nightAt].date,'2026-09-25');
 assert.ok(ctx.recentLogs.every((l,i,a)=>i===0||a[i-1].date<=l.date),'记录按时间正序返回');
 assert.equal(ctx.todayXp,60,'今日经验只算当天未撤销记录');
 assert.equal(ctx.level,gameLevel(ctxState));
 console.log('PASS 上下文隐私白名单、超量裁剪、撤销记录不发送、净额与今日经验口径');
+// 时区区分度：把 Date 定格在 UTC 2026-10-30 17:00（上海 10-31 01:00），只有上海当天那条算今日经验
+const RealDate=Date;
+let fakeNow=new RealDate('2026-10-30T17:00:00.000Z');
+class FakeDate extends RealDate{
+ constructor(...args){if(args.length===0)super(fakeNow.getTime());else super(...args);}
+ static now(){return fakeNow.getTime();}
+}
+const tzState={...c,goals:[],tasks:[],chat:[],memory:[],logs:[
+ {id:'tz-sh',taskId:'',title:'上海今天',domain:'mind',value:1,unit:'次',goalId:'',xp:30,date:'2026-10-31',at:'2026-10-30T16:30:00.000Z',undone:false},
+ {id:'tz-utc',taskId:'',title:'UTC今天',domain:'health',value:1,unit:'次',goalId:'',xp:10,date:'2026-10-30',at:'2026-10-30T04:00:00.000Z',undone:false},
+ {id:'tz-old',taskId:'',title:'更早的',domain:'career',value:1,unit:'次',goalId:'',xp:20,date:'2026-10-29',at:'2026-10-29T04:00:00.000Z',undone:false},
+ {id:'tz-undone',taskId:'',title:'当天撤销',domain:'social',value:1,unit:'次',goalId:'',xp:30,date:'2026-10-31',at:'2026-10-30T15:00:00.000Z',undone:true}]};
+let tzCtx,tzDay;
+globalThis.Date=FakeDate;
+try{tzDay=gameDay();tzCtx=buildChatContext(tzState,{userText:'今天怎么样',prevPosture:'companion',switchConsent:false});}finally{globalThis.Date=RealDate;}
+assert.equal(globalThis.Date,RealDate,'伪造的 Date 必须复原');
+assert.equal(tzDay,'2026-10-31','day() 应使用上海时区');
+assert.equal(tzCtx.todayXp,30,'今日经验按上海当天算：UTC 昨天那条不算，撤销那条也不算');
+console.log('PASS 今日经验按上海时区判定，UTC 昨天与已撤销记录都不计入');
