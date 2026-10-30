@@ -1,4 +1,8 @@
 .memory-facts{display:grid;gap:12px}
+/* 只有卡片列表滚动，「全部清空」必须一直可见。
+   若让整个弹窗滚动，按钮会落到弹窗滚动区之外：手机 390×844 实测按钮在 y=920、
+   视口只有 844，用户看到一屏卡片却找不到任何操作入口，表现就是「点了没反应」。 */
+.memory-facts{max-height:min(58vh,520px);overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
 .memory-fact{padding:16px;background:linear-gradient(145deg,#27203f,#141b30);border:1px solid #92719648;border-radius:14px;min-width:0}
 .memory-fact__head,.memory-fact__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .memory-fact p{margin:8px 0 10px;line-height:1.7;overflow-wrap:anywhere}
