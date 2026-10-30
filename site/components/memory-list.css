@@ -7,3 +7,13 @@
 .memory-fact__head,.memory-fact__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .memory-fact p{margin:8px 0 10px;line-height:1.7;overflow-wrap:anywhere}
 .memory-fact__foot .note{color:#9aa4c0}
+/* 手机上把弹窗变成「标题固定 / 列表占满剩余 / 全部清空钉在底部」的三段式。
+   纯 CSS 限高（上面的 min(58vh,520px)）在放大后仍按布局视口算，会顶出可见区；
+   改成纵向弹性之后，列表自己缩到剩下多少显示多少，「全部清空」永远留在弹窗底部可见。
+   只在 memory-dialog 内生效，其它弹窗不受影响。 */
+@media(max-width:760px){
+  .memory-dialog{display:flex!important;flex-direction:column}
+  .memory-dialog .form-stack{display:flex;flex:1 1 auto;flex-direction:column;min-height:0}
+  .memory-dialog .memory-facts{flex:1 1 auto;min-height:0;max-height:none}
+  .memory-dialog .secondary.full{flex:0 0 auto}
+}

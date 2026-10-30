@@ -68,3 +68,30 @@ textarea,select{width:100%;font:inherit;color:#edf0ff;background:#0b1023;border:
   .planet-node{font-size:.88rem}
   .private-label{font-size:.8rem}
 }
+
+/* 触控控件关掉双击缩放，避免「点一下没反应、又点一下」被浏览器当成双击把整页放大。
+   同时去掉 300ms 点击延迟。 */
+button,a,label{touch-action:manipulation}
+
+/* 弹窗按**视觉视口**排版，而不是布局视口。
+   手机上双指/双击放大后，看得见的区域比布局视口小一半，而 .game-dialog 是
+   position:fixed + vh 居中：它照样按布局视口撑开，把整块可见区糊住，关闭键和
+   「全部清空」落到屏幕外；模态锁又会 preventDefault 掉 touchmove，于是页面既拖不动
+   也够不着——实测 2x 下弹窗 753px 高、可见区只有 458px。
+   这里把位置和上限都绑到 --vvh / --vvw（由 components/viewport-vars.tsx 写入），
+   未放大时 vvh≈vh，取值与原来的 86dvh 一致。
+   min() 在旧引擎上不认时整条丢弃，回落到上面的 86vh / 86dvh，不会更差。 */
+@media(max-width:760px){
+  .game-dialog{
+    top:calc(var(--vv-top,0px) + var(--vvh,86dvh)/2)!important;
+    left:calc(var(--vv-left,0px) + var(--vvw,100vw)/2)!important;
+    max-height:min(86dvh,calc(var(--vvh,86dvh) - 20px))!important;
+    max-width:min(calc(100% - 28px),calc(var(--vvw,100vw) - 16px))!important;
+  }
+}
+
+/* 可见区高度 < 400px（大幅放大）时，标题+说明+留白本身就撑满整屏，内容区被挤成 0。
+   收起说明与多余留白——说明是辅助文字，操作按钮才是要用到的。 */
+html[data-vvh='short'] .game-dialog{padding:14px!important;gap:11px!important}
+html[data-vvh='short'] .game-dialog [data-slot=dialog-description]{display:none}
+html[data-vvh='short'] .game-dialog [data-slot=dialog-title]{font-size:1.05rem;padding-right:44px}

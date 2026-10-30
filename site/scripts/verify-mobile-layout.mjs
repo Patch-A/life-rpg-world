@@ -185,4 +185,46 @@ const switchHit=[...mobile.matchAll(/\[data-slot=switch\]:after\{([^}]*)\}/g)].m
 assert.ok(switchHit,'手机断点必须给开关补一条 44px 高的命中区规则');
 assert.ok(/height:\s*44px/.test(switchHit),`开关命中区必须 44px 高，实际「${switchHit}」`);
 
+// ── 放大后弹窗不能被布局视口甩在屏幕外 ──────────────────────────────────────
+// 真机现象：「我的 → 它记住的事」点了之后自动放大，然后整个界面拖不动。
+// 实测（412×915、2x）：弹窗仍按布局视口排 753px 高，可见区只剩 458px，
+// 关闭键与「全部清空」都在屏幕外；模态锁又 touchmove preventDefault 16/16，
+// 于是既拖不动也够不着。修法是把弹窗绑到视觉视口，所以这里卡三件事：
+// 变量有人写、CSS 有人读、读不到时有兜底。
+
+// 1) 触控控件关掉双击缩放：连点两下不该把整页放大。
+const manipulation=nthBlock(globals,'button,a,label{touch-action:manipulation}');
+assert.ok(manipulation!==''||/button,a,label\{touch-action:manipulation\}/.test(globals),'必须给按钮/链接/标签设 touch-action:manipulation，否则连点两下会被当成双击缩放');
+
+// 2) 变量由组件写入，且组件真的挂在 layout 里。
+const vvTsx=source('components/viewport-vars.tsx');
+assert.ok(/setProperty\(\s*['"]--vvh['"]/.test(vvTsx),'components/viewport-vars.tsx 必须把视觉视口高度写进 --vvh');
+assert.ok(/visualViewport/.test(vvTsx),'viewport-vars 必须读 window.visualViewport');
+const layout=source('app/layout.tsx');
+assert.ok(/<ViewportVars\s*\/>/.test(layout),'layout.tsx 必须挂载 <ViewportVars/>，否则 --vvh 永远是空的');
+
+// 3) 手机断点里 .game-dialog 用 --vvh/--vvw 定位与限高，且带 vh 兜底。
+const vvRule=[...mediaBlocks(globals,760).matchAll(/\.game-dialog\{([^}]*)\}/g)].map(m=>m[1]).find(b=>b.includes('--vvh'));
+assert.ok(vvRule,`手机断点必须有一条用 --vvh 定位的 .game-dialog 规则，实际找不到`);
+assert.ok(/top:calc\(var\(--vv-top[^)]*\)\s*\+\s*var\(--vvh,/.test(vvRule),`.game-dialog 的 top 必须按 --vvh 居中，实际「${vvRule.slice(0,120)}」`);
+assert.ok(/max-height:[^;]*var\(--vvh,86dvh\)/.test(vvRule),`.game-dialog 的 max-height 必须跟着 --vvh，且兜底 86dvh（保留旧引擎行为），实际「${vvRule.slice(0,160)}」`);
+
+// 4) 可见区极矮时收起说明文字：否则标题+说明+留白就能吃光整屏，内容区被挤成 0。
+//    实测 3x（可见区 305px）不收起时「全部清空」在屏幕外。
+const shortRule=nthBlock(globals,"html[data-vvh='short'] .game-dialog{");
+assert.ok(shortRule.includes('padding'),'可见区过矮时必须收紧弹窗留白');
+assert.ok(/data-vvh='short'[^}]*dialog-description\][^{]*\{[^}]*display:none/.test(globals.replace(/\n/g,'')),'可见区过矮时必须收起弹窗说明文字，把高度让给内容');
+assert.ok(/dataset\.vvh/.test(vvTsx),'viewport-vars 必须按视觉视口高度打 short 标记');
+
+// 5) 「它记住的事」的列表要能自己缩、自己滚，「全部清空」永远留在底部可见。
+//    纯 CSS 限高 min(58vh,520px) 在放大后仍按布局视口算，会顶出可见区。
+assert.ok(/memory-dialog/.test(page),'page.tsx 必须给「它记住的事」弹窗加 memory-dialog 类，否则下面的规则挂不上去');
+const memMobile=mediaBlocks(memCss,760);
+const memStack=[...memMobile.matchAll(/\.memory-dialog \.form-stack\{([^}]*)\}/g)].map(m=>m[1])[0];
+assert.ok(memStack,`手机断点必须把 memory-dialog 的表单区改成纵向弹性，实际没找到`);
+assert.ok(/min-height:\s*0/.test(memStack),`.form-stack 必须 min-height:0，否则子元素撑不到可收缩，实际「${memStack}」`);
+const memFacts=[...memMobile.matchAll(/\.memory-dialog \.memory-facts\{([^}]*)\}/g)].map(m=>m[1])[0];
+assert.ok(memFacts,`手机断点必须覆盖 memory-dialog 内 .memory-facts 的限高`);
+assert.ok(/max-height:\s*none/.test(memFacts),`.memory-dialog 内 .memory-facts 必须取消固定限高、改由弹性分配，实际「${memFacts}」`);
+
 console.log('PASS 手机排版的样式与结构约束成立');
