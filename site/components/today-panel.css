@@ -93,6 +93,10 @@
     height:80px;border-radius:18px;
     /* 光晕跟着头像走，别在中路再开一圈。 */
     background:radial-gradient(ellipse at 13% 50%,var(--scene-halo-wash),transparent 55%),linear-gradient(150deg,#201e36,#11182a);
+    /* 陪伴态原本会让角色「坐低」12px（--scene-sink），是给旧立绘的姿态用的。
+       树人没有坐姿，这 12px 只会把它整体推出 80px 的条，底部的土包被裁掉，
+       看起来像悬在半空。这里归零。 */
+    --scene-sink:0px;
   }
   .app-shell.view-today .assistant-scene__sky{display:none}
   /* 气泡就是聊天流里最后那条，屏幕上不再复读一遍。 */

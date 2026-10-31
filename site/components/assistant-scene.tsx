@@ -2,11 +2,10 @@
 
 import {useCallback, useEffect, useRef, useState} from 'react';
 import {Volume2} from 'lucide-react';
-import {CharacterPreview} from './character-2d';
+import {Treant, type TreantState} from './treant';
 import './assistant-scene.css';
 
 export type AssistantPosture = 'companion' | 'counselor';
-export type AssistantAvatar = 'male' | 'female';
 
 export interface AssistantSceneProps {
   /** 陪伴者（坐低、语速慢）或咨询师（站直、光更亮）。 */
@@ -17,13 +16,13 @@ export interface AssistantSceneProps {
   speaking: boolean;
   /** 任务 9 的对话区回调；组件内部也会重新朗读当前 line。 */
   onReplay: () => void;
-  /** 用户角色性别，缺省 male；助手取相反值，避免「自己跟自己说话」。 */
-  userAvatar?: AssistantAvatar;
+  /** 正在等模型回复。等多久，树人就转多久。 */
+  thinking?: boolean;
+  /** 麦克风开着。语音输入还没接上时传 false。 */
+  listening?: boolean;
 }
 
-export function AssistantScene({posture, line, speaking, onReplay, userAvatar = 'male'}: AssistantSceneProps) {
-  // 占位素材只有男/女两套：助手固定取用户角色的相反性别（默认 female）。
-  const assistantGender: AssistantAvatar = userAvatar === 'male' ? 'female' : 'male';
+export function AssistantScene({posture, line, speaking, onReplay, thinking = false, listening = false}: AssistantSceneProps) {
   const [reading, setReading] = useState(false);
   const lastRead = useRef('');
   const currentUtterance = useRef<SpeechSynthesisUtterance | null>(null);
@@ -73,6 +72,11 @@ export function AssistantScene({posture, line, speaking, onReplay, userAvatar = 
     speak(line, true);
   };
 
+  // 状态只认「真的在出声」的 reading，不认外层那个一次性信号 speaking。
+  // speaking 是被 page.tsx 在下一个 tick 就复位的触发器（见那边的注释），拿它驱动动画
+  // 只有一帧，等于没有；而且朗读被关掉时它也会闪一下，等于在骗人。
+  const treantState: TreantState = listening ? 'listening' : reading ? 'speaking' : thinking ? 'thinking' : 'idle';
+
   // data-season 预留季节位：V1 固定 'none'，后续季节变化只改这里的值，样式按属性呼应。
   return (
     <section
@@ -85,7 +89,7 @@ export function AssistantScene({posture, line, speaking, onReplay, userAvatar = 
       <div className="assistant-scene__halo" aria-hidden="true"/>
       <div className="assistant-scene__pedestal" aria-hidden="true"/>
       <div className="assistant-scene__actor">
-        <CharacterPreview gender={assistantGender} className="assistant-scene__art"/>
+        <Treant state={treantState}/>
       </div>
       <button type="button" className="assistant-scene__touch" onClick={replay} aria-label="再听记录官说一次"/>
       {/* 气泡常驻，让 role=status 在文本变化前就存在于无障碍树里；没有台词时只做透明处理。 */}

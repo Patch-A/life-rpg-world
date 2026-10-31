@@ -32,13 +32,19 @@
 .assistant-scene__sky{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 108%,#0b1120b8,transparent 66%);pointer-events:none}
 .assistant-scene__halo{position:absolute;top:42%;left:50%;width:224px;height:224px;transform:translate(-50%,-50%);border:1px solid var(--scene-rim);border-radius:50%;background:radial-gradient(circle,var(--scene-halo-wash),transparent 70%);box-shadow:0 0 0 26px var(--scene-halo-wash),0 0 46px var(--scene-halo-core);pointer-events:none;animation:assistant-halo 7s ease-in-out infinite}
 .assistant-scene__pedestal{position:absolute;bottom:64px;left:50%;width:188px;height:22px;transform:translateX(-50%);border:1px solid var(--scene-rim);border-radius:50%;background:var(--scene-halo-wash);box-shadow:0 0 24px var(--scene-halo-wash);pointer-events:none}
-/* 站位偏右，与首页居中站立的「你」区分开；占位立绘压灰压暗，避免像同一个人。 */
-.assistant-scene__actor{position:absolute;top:20px;right:10%;bottom:84px;left:18%;transform:translateY(var(--scene-sink));transition:transform .5s ease;pointer-events:none}
-.assistant-scene__art{display:block;width:100%;height:100%;filter:grayscale(.5) brightness(.9)}
-.assistant-scene__art .rpg-art>img{animation:assistant-idle 7.5s ease-in-out infinite;transform-origin:50% 92%}
+/* 站位偏右，与首页居中站立的「你」区分开。
+   以前这里压灰压暗，是因为站的是玩家角色的异性版本，轮廓跟「你」太像；
+   换成树人之后就不需要了——它本来就不像人。
+
+   bottom 必须给台词气泡让路：气泡最矮也有 14px 边距 + 一行字，
+   树根要是被气泡压住，「不像人形」这个设计就白做了（看起来像陷进地里）。
+   110 = 气泡底距 14 + 气泡最高 92 + 4px 呼吸。 */
+.assistant-scene__actor{position:absolute;top:20px;right:10%;bottom:110px;left:18%;transform:translateY(var(--scene-sink));transition:transform .5s ease;pointer-events:none}
 .assistant-scene__touch{position:absolute;inset:56px 8% 96px;z-index:2;border:0;border-radius:20px;background:transparent;cursor:pointer;-webkit-tap-highlight-color:transparent}
 .assistant-scene__touch:focus-visible{outline:2px solid #d6baff;outline-offset:-4px}
-.assistant-scene__bubble{position:absolute;right:14px;bottom:14px;left:14px;z-index:3;max-height:132px;overflow:auto;padding:11px 14px;border:1px solid #c8afe055;border-radius:16px;background:#201c37f2;font-size:13px;line-height:1.75}
+/* max-height 92 是和上面的 110 配对的：气泡一高过 92 就会压到树根。
+   超出的部分收成省略号——完整的话本来就在右边聊天流里，这里只是预览。 */
+.assistant-scene__bubble{position:absolute;right:14px;bottom:14px;left:14px;z-index:3;max-height:92px;overflow:auto;padding:11px 14px;border:1px solid #c8afe055;border-radius:16px;background:#201c37f2;font-size:13px;line-height:1.75}
 .assistant-scene__bubble--quiet{border-color:transparent;background:transparent}
 .assistant-scene__line{margin:0}
 .assistant-scene__replay{position:absolute;top:12px;right:12px;z-index:4;display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:44px;min-height:44px;padding:0 12px;border:1px solid #ae92d34d;border-radius:14px;background:#2b243fd9;color:#e8dcf8;font-size:12px;cursor:pointer}
@@ -46,7 +52,6 @@
 .assistant-scene__replay:focus-visible{outline:2px solid #d6baff;outline-offset:2px}
 .assistant-scene__replay[aria-pressed='true']{background:#443356;border-color:#c6a6ed;box-shadow:0 0 0 1px #c6a6ed55}
 @keyframes assistant-halo{0%,100%{opacity:.72;transform:translate(-50%,-50%) scale(.98)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.03)}}
-@keyframes assistant-idle{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
 @media(max-width:600px){
   .assistant-scene{height:212px}
   .assistant-scene__halo{top:40%;width:168px;height:168px}
@@ -60,10 +65,11 @@
   .assistant-scene__replay{width:44px;padding:0}
   .assistant-scene__replay-label{display:none}
 }
-/* 跟随站点「减少动态效果」设置（page.tsx 在 app-shell 上加 .reduced） */
-.reduced .assistant-scene__halo,.reduced .assistant-scene__art .rpg-art>img{animation:none}
+/* 跟随站点「减少动态效果」设置（page.tsx 在 app-shell 上加 .reduced）。
+   树人自身那套静止规则在 treant.css 末尾，这里只管场景层。 */
+.reduced .assistant-scene__halo{animation:none}
 .reduced .assistant-scene__actor{transition:none}
 @media(prefers-reduced-motion:reduce){
-  .assistant-scene__halo,.assistant-scene__art .rpg-art>img{animation:none}
+  .assistant-scene__halo{animation:none}
   .assistant-scene__actor{transition:none}
 }

@@ -1,0 +1,100 @@
+/* 记录官形象：一棵会记事的树人。
+   这里是占位素材的频率和节奏，不是终稿配色。换素材时只换 <svg>，这层不用动。
+
+   一条尺寸事实决定了这里为什么「没有细节」：
+   同一个形象要在 **56px**（手机陪伴条）和 250–400px（桌面场景）两头都认得出，
+   差 5–7 倍。所以全部用大色块，细枝、纹理、描边在 56px 下只会糊成一坨。
+
+   状态只从 data-state 读，不猜外部状态：
+   idle / speaking / listening / thinking。
+   第五种 sleeping 不在这里——它由「减少动态效果」开关决定，见文件末尾。 */
+
+.treant{
+  display:block;
+  width:100%;
+  height:100%;
+  /* 根要贴着台座，溢出交给 .assistant-scene 裁。 */
+  overflow:visible;
+}
+
+/* ── 基础形态 ── */
+
+/* 摇晃的原点放在树干最底下，不是树冠中心——从根上摇才像植物，
+   从树冠中心摇像果冻。view-box 坐标系下 120 就是树干底边。 */
+.treant__canopy{
+  transform-box:view-box;
+  transform-origin:50px 120px;
+  animation:treant-sway 4.4s ease-in-out infinite;
+}
+
+/* 那片叶子接在树冠右上，绕它的根部转（cx 71 是它自己埋进树冠的位置）。 */
+.treant__ear{
+  transform-box:view-box;
+  transform-origin:71px 26px;
+  transition:transform .35s ease;
+}
+
+.treant__glow{opacity:.16;transition:opacity .4s ease}
+
+/* 眨眼：用 fill-box 各转各的，不然整张脸（连嘴）一起压扁。 */
+.treant__eye{
+  transform-box:fill-box;
+  transform-origin:50% 50%;
+  animation:treant-blink 6.8s ease-in-out infinite;
+}
+
+/* 年轮：三圈独立闪。 */
+.treant__rings path{
+  transition:stroke .3s ease,opacity .3s ease;
+}
+
+/* ── 四种状态 ── */
+
+/* listening：一片叶子竖起，像在听。摇晃停下——听的时候人是不动的。 */
+.treant[data-state='listening'] .treant__canopy{animation:none}
+.treant[data-state='listening'] .treant__ear{transform:rotate(-16deg) scale(1.08)}
+.treant[data-state='listening'] .treant__glow{opacity:.3}
+
+/* speaking：树冠轻轻张开，光从叶缝里透出来。 */
+.treant[data-state='speaking'] .treant__canopy{animation:treant-open 1.8s ease-in-out infinite}
+.treant[data-state='speaking'] .treant__leaves{opacity:.95}
+.treant[data-state='speaking'] .treant__glow{opacity:.55;animation:treant-glow 1.8s ease-in-out infinite}
+
+/* thinking：年轮依次亮。
+   底部那圈是「旧的」，先从它开始，光往上爬——跟年轮一圈圈往外长是同一个方向。
+   1.8s 一轮三圈，和 speaking 的节奏对齐，两种状态切换时不会突然变速。 */
+.treant[data-state='thinking'] .treant__canopy{animation:none}
+.treant[data-state='thinking'] .treant__rings path{animation:treant-ring 1.8s ease-in-out infinite}
+.treant[data-state='thinking'] .treant__rings path:nth-of-type(1){animation-delay:.6s}
+.treant[data-state='thinking'] .treant__rings path:nth-of-type(2){animation-delay:.3s}
+.treant[data-state='thinking'] .treant__rings path:nth-of-type(3){animation-delay:0s}
+
+@keyframes treant-sway{0%,100%{transform:rotate(-1.6deg)}50%{transform:rotate(1.6deg)}}
+@keyframes treant-open{0%,100%{transform:scale(1) rotate(-0.8deg)}50%{transform:scale(1.06) rotate(0.8deg)}}
+@keyframes treant-ring{0%,100%{stroke:#e8c07a;stroke-width:2;opacity:.8}45%{stroke:#fff3d0;stroke-width:3.4;opacity:1}}
+@keyframes treant-glow{0%,100%{opacity:.35}50%{opacity:.75}}
+@keyframes treant-blink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.15)}}
+
+/* ── 第五种状态：sleeping ──
+   不开动画，只剩一点极弱的光。用 !important 是因为
+   `[data-state='thinking'] .treant__rings path` 这类规则的权重比这里高，
+   不加就压不住；「减少动态效果」是用户的明确选择，必须赢。 */
+.reduced .treant__canopy,
+.reduced .treant__ear,
+.reduced .treant__eye,
+.reduced .treant__rings path,
+.reduced .treant__glow{animation:none!important;transition:none!important}
+.reduced .treant__rings path{stroke:#e8c07a!important;stroke-width:2!important;opacity:.8!important}
+.reduced .treant__glow{opacity:.16!important}
+.reduced .treant__ear{transform:none!important}
+
+@media(prefers-reduced-motion:reduce){
+  .treant__canopy,
+  .treant__ear,
+  .treant__eye,
+  .treant__rings path,
+  .treant__glow{animation:none!important;transition:none!important}
+  .treant__rings path{stroke:#e8c07a!important;stroke-width:2!important;opacity:.8!important}
+  .treant__glow{opacity:.16!important}
+  .treant__ear{transform:none!important}
+}
