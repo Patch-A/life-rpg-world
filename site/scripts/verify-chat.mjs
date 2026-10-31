@@ -122,27 +122,22 @@ console.log('PASS 记忆单条删除、清空全部、不触碰生日与人生�
 // 记忆管理页结构冒烟：渲染测试宿主不存在，只能守住「派发哪个动作、清空确认走哪条路径」。
 const memoryList=source('components/memory-list.tsx');
 assert.ok(memoryList.includes("act({type:'delete-memory-fact',id:m.id})"),'单条删除必须派发带 id 的 delete-memory-fact');
-// window.confirm 在微信/支付宝内嵌 WebView 里可能直接返回 false，表现为「点了没反应」；
-// 清空全部记忆这类不可恢复的确认必须走页面级 AlertDialog，与其它删除入口一致。
+// 记忆管理使用普通页面，清空保留二次确认，不再依赖模态锁。
 assert.equal(memoryList.includes('window.confirm'),false,'清空记忆不得再用 window.confirm');
-assert.ok(memoryList.includes('onClearAll:()=>void'),'MemoryList 必须接收 onClearAll，把确认交给页面级 AlertDialog');
-assert.ok(memoryList.includes('onClick={()=>onClearAll()}'),'清空按钮必须调用 onClearAll，不得自己确认后直接派发删除');
-assert.equal(memoryList.includes("type:'delete-memory'"),false,'记忆管理页不得调用生日/纪念用的 delete-memory');
-assert.ok(memoryList.includes('它还没有记住什么'),'空记忆时必须给出那句文案');
-// 页面侧：清空必须复用 AlertDialog。先界定 AlertDialog 范围再断言内容，避免整页文本误命中。
-const memoryPage=source('app/page.tsx');
-assert.ok(memoryPage.includes("onClearAll={()=>setConfirm({type:'delete-memory-fact'})}"),'page 必须把清空接到 setConfirm，由 AlertDialog 弹确认');
-const alertStart=memoryPage.indexOf('<AlertDialog open={!!confirm}');
-const alertEnd=memoryPage.indexOf('</AlertDialog>',alertStart);
-assert.ok(alertStart>-1&&alertEnd>alertStart,'必须保留页面级 AlertDialog 确认框');
-const alertBlock=memoryPage.slice(alertStart,alertEnd);
-assert.ok(alertBlock.includes("confirm?.type==='delete-memory-fact'"),'AlertDialog 必须有清空长期记忆的文案分支');
-assert.ok(alertBlock.includes('清空全部长期记忆？'),'清空确认标题必须说清会清空全部长期记忆');
-assert.ok(alertBlock.includes('这 ${s.memory.length} 条被它记住的事会全部删除，无法恢复'),'清空确认描述必须按实际条数说明全部删除且不可恢复');
-assert.ok(!/这 \d+ (类|条)/.test(alertBlock),'清空确认描述不得写死条数：条数随记忆变化，写死就是在不可恢复的操作前说假话');
-assert.ok(alertBlock.includes('你的对话与行动记录不受影响'),'清空确认描述必须说明对话与行动记录不受影响');
-assert.ok(alertBlock.includes('确认清空'),'清空确认按钮文案必须是「确认清空」');
-console.log('PASS 记忆管理页结构：单条删除派发带 id、清空走页面级 AlertDialog、不碰 delete-memory');
+assert.ok(memoryList.includes('onClearAll:()=>void'),'MemoryList 必须把清空确认交给容器');
+assert.ok(memoryList.includes('onClick={()=>onClearAll()}'),'清空入口不得直接派发删除');
+assert.equal(memoryList.includes("type:'delete-memory'"),false,'记忆管理不得删除生日/纪念');
+assert.ok(memoryList.includes('它还没有记住什么'),'空记忆时必须给出说明');
+const memoryPage=source('components/memory-page.tsx');
+assert.ok(memoryPage.includes('onClearAll={()=>setConfirming(true)}'),'首次点击只显示确认');
+assert.ok(memoryPage.includes("await act({type:'delete-memory-fact'})"),'确认后通过既有写入口清空');
+assert.ok(memoryPage.includes('onClick={clearAll}'),'确认按钮连接清空动作');
+assert.ok(memoryPage.includes('清空全部长期记忆？'),'确认标题说明范围');
+assert.ok(memoryPage.includes('这 {facts.length} 条被它记住的事会全部删除，无法恢复'),'按实际条数说明删除范围');
+assert.ok(memoryPage.includes('你的对话与行动记录不受影响'),'说明保留范围');
+assert.ok(memoryPage.includes('保留记录')&&memoryPage.includes('确认清空'),'提供取消与确认');
+assert.ok(!memoryPage.includes('<AlertDialog')&&!memoryPage.includes('<Dialog'),'确认不得重新引入模态锁');
+console.log('PASS 记忆管理页结构：单条删除带 id、清空二次确认、不碰生日纪念');
 // 朗读开关：写入的必须就是 assistant-scene 读的那个值（关 = '0'），否则用户关不掉朗读。
 const assistantScene=source('components/assistant-scene.tsx');
 const pageSource=source('app/page.tsx');

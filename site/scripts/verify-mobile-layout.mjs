@@ -105,17 +105,13 @@ assert.equal(page.includes('<section className="panel"><h2>人生档案与设置
 // 留着它会让人以为手机端已有高度覆盖，实际覆盖的是空气。
 assert.equal(/\.character-art\s*\{/.test(globals),false,'不得保留 .character-art 规则：没有组件渲染这个类名，它只会误导排查');
 
-// 记忆弹窗：「全部清空」必须一直可见。
-// 让整个弹窗滚动时按钮落在滚动区之外（手机实测按钮 y=920，视口 844），用户找不到撤销入口。
+// 记忆列表随文档滚动，避免弹窗或嵌套滚动区锁住手机操作。
 const factsRules=[...memCss.matchAll(/\.memory-facts\{([^}]*)\}/g)].map(m=>m[1]);
-assert.ok(factsRules.length>=2,`memory-list.css 必须有两条 .memory-facts 规则（布局 + 滚动容器），实际 ${factsRules.length} 条`);
-const scroller=factsRules.find(r=>r.includes('overflow-y'));
-assert.ok(scroller,'卡片列表必须自己是滚动容器');
-assert.ok(/max-height:\s*min\(/.test(scroller),'滚动容器必须限制高度，否则它永远不滚动');
-assert.ok(scroller.includes('overscroll-behavior:contain'),'滚动容器必须拦住滚动穿透，否则滑到底会带动弹窗后的页面');
+assert.ok(factsRules.length,'必须存在记忆列表样式');
+assert.ok(factsRules.every(r=>!/(max-height|overflow-y|overscroll-behavior)/.test(r)),'记忆列表不得限制高度或拦截文档滚动');
 const memTsx=source('components/memory-list.tsx');
-assert.ok(memTsx.includes('onClearAll'),'清空按钮必须由弹窗容器提供回调，才能留在卡片滚动区之外');
-assert.equal(/window\.confirm/.test(memTsx),false,'不得用 window.confirm 替代页面级确认框');
+assert.ok(memTsx.includes('onClearAll'),'清空须经容器二次确认');
+assert.equal(/window\.confirm/.test(memTsx),false,'不得用 window.confirm 替代页面内确认');
 
 // 6. 字号下限。桌面把标签写成 .65~.77rem（10.4~12.3px）在 390 宽的屏上就是「所有内容都很小」，
 //    390×844 实测正文 13.5px、按钮 12.5px，用户的原话是要凑近看。这里按像素值卡下限，
@@ -216,15 +212,11 @@ assert.ok(shortRule.includes('padding'),'可见区过矮时必须收紧弹窗留
 assert.ok(/data-vvh='short'[^}]*dialog-description\][^{]*\{[^}]*display:none/.test(globals.replace(/\n/g,'')),'可见区过矮时必须收起弹窗说明文字，把高度让给内容');
 assert.ok(/dataset\.vvh/.test(vvTsx),'viewport-vars 必须按视觉视口高度打 short 标记');
 
-// 5) 「它记住的事」的列表要能自己缩、自己滚，「全部清空」永远留在底部可见。
-//    纯 CSS 限高 min(58vh,520px) 在放大后仍按布局视口算，会顶出可见区。
-assert.ok(/memory-dialog/.test(page),'page.tsx 必须给「它记住的事」弹窗加 memory-dialog 类，否则下面的规则挂不上去');
-const memMobile=mediaBlocks(memCss,760);
-const memStack=[...memMobile.matchAll(/\.memory-dialog \.form-stack\{([^}]*)\}/g)].map(m=>m[1])[0];
-assert.ok(memStack,`手机断点必须把 memory-dialog 的表单区改成纵向弹性，实际没找到`);
-assert.ok(/min-height:\s*0/.test(memStack),`.form-stack 必须 min-height:0，否则子元素撑不到可收缩，实际「${memStack}」`);
-const memFacts=[...memMobile.matchAll(/\.memory-dialog \.memory-facts\{([^}]*)\}/g)].map(m=>m[1])[0];
-assert.ok(memFacts,`手机断点必须覆盖 memory-dialog 内 .memory-facts 的限高`);
-assert.ok(/max-height:\s*none/.test(memFacts),`.memory-dialog 内 .memory-facts 必须取消固定限高、改由弹性分配，实际「${memFacts}」`);
+// 5) 记忆入口进入普通页面，不再挂载到 Dialog。
+assert.ok(page.includes("onClick={()=>go('memory-facts')}"),'记忆入口必须使用页面导航');
+assert.ok(page.includes("view==='memory-facts'&&"),'必须渲染记忆页面');
+assert.ok(page.includes('<MemoryPage '),'记忆页必须挂载');
+assert.ok(!page.includes("modal==='memory-facts'"),'记忆页不得重新接入弹窗分发');
+assert.ok(!/memory-dialog/.test(memCss),'不得保留记忆弹窗布局');
 
 console.log('PASS 手机排版的样式与结构约束成立');

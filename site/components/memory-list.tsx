@@ -17,7 +17,7 @@ export function MemoryList({facts,act,busy,onClearAll}:{facts:MemoryFact[];act:(
    <p>{m.text}</p>
    <div className="memory-fact__foot"><span className="note">被记住 {m.weight} 次</span><button className="text-button" disabled={busy} onClick={()=>act({type:'delete-memory-fact',id:m.id})} aria-label={`删除这条记忆：${m.text}`}>删除这一条</button></div>
   </article>)}</div>
-  {/* 清空会一次删掉全部记忆：确认交给页面级 AlertDialog，与其它删除入口一致。 */}
+  {/* 清空会一次删掉全部记忆：交给记忆页显示二次确认。 */}
   <button className="secondary full" disabled={busy} onClick={()=>onClearAll()}>全部清空</button>
  </div>;
 }

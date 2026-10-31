@@ -1,19 +1,11 @@
-.memory-facts{display:grid;gap:12px}
-/* 只有卡片列表滚动，「全部清空」必须一直可见。
-   若让整个弹窗滚动，按钮会落到弹窗滚动区之外：手机 390×844 实测按钮在 y=920、
-   视口只有 844，用户看到一屏卡片却找不到任何操作入口，表现就是「点了没反应」。 */
-.memory-facts{max-height:min(58vh,520px);overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+.memory-page{max-width:760px;min-width:0;margin-inline:auto}
+.memory-page__description{margin:20px 0;line-height:1.8;overflow-wrap:anywhere}
+/* The list and its actions scroll with the document, including when zoomed. */
+.memory-facts{display:grid;gap:12px;min-width:0}
 .memory-fact{padding:16px;background:linear-gradient(145deg,#27203f,#141b30);border:1px solid #92719648;border-radius:14px;min-width:0}
 .memory-fact__head,.memory-fact__foot{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
 .memory-fact p{margin:8px 0 10px;line-height:1.7;overflow-wrap:anywhere}
 .memory-fact__foot .note{color:#9aa4c0}
-/* 手机上把弹窗变成「标题固定 / 列表占满剩余 / 全部清空钉在底部」的三段式。
-   纯 CSS 限高（上面的 min(58vh,520px)）在放大后仍按布局视口算，会顶出可见区；
-   改成纵向弹性之后，列表自己缩到剩下多少显示多少，「全部清空」永远留在弹窗底部可见。
-   只在 memory-dialog 内生效，其它弹窗不受影响。 */
-@media(max-width:760px){
-  .memory-dialog{display:flex!important;flex-direction:column}
-  .memory-dialog .form-stack{display:flex;flex:1 1 auto;flex-direction:column;min-height:0}
-  .memory-dialog .memory-facts{flex:1 1 auto;min-height:0;max-height:none}
-  .memory-dialog .secondary.full{flex:0 0 auto}
-}
+.memory-clear-confirm{display:grid;gap:16px;margin-top:20px;overflow-wrap:anywhere}
+.memory-clear-confirm p{line-height:1.8}
+.memory-clear-confirm__actions{display:flex;flex-wrap:wrap;gap:12px}
