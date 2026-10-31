@@ -134,10 +134,24 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
   s.chat.push({id:rid,date:today,at,role:'user',text:userText,posture},{id:rid+'-a',date:today,at,role:'assistant',text:reply,posture,askSwitch});if(s.chat.length>60)s.chat.splice(0,s.chat.length-60);
   const records=Array.isArray(a.records)?a.records:[];
   for(const raw of records){const r=raw as Record<string,unknown>;const summary=(typeof r.summary==='string'?r.summary.trim():'').slice(0,200),body=(typeof r.text==='string'?r.text.trim():'').slice(0,400);if(!summary||!body)continue;const tags=Array.isArray(r.tags)?[...new Set(r.tags.filter(t=>typeof t==='string'&&t.trim()).map(t=>(t as string).trim().slice(0,20)))].slice(0,20):[];s.journal.push({id:id(),date:today,at,text:body,summary,...(domains.some(d=>d.id===r.domain)?{domain:r.domain as Domain}:{}),tags,posture,runId:rid,status:'pending'});}
-  // spec 6.5：journal 上限 500 条，超出删最旧，**并提示「已归档至导出」**。
-  // 静默 splice 过一次之后用户就永远不知道有东西消失过，而 /about 还写着记录会保存。
-  // 顺手记下这一次删了几条，由界面提示一次；旧存档没有这个字段，读的时候按 false 兜底。
-  if(s.journal.length>500){const dropped=s.journal.length-500;s.journal.splice(0,dropped);s.settings.journalTrimmed=true;}
+  // spec 6.5：journal 上限 500 条。
+  // 没有「已归档至导出」这回事：导出只含当前存档，也没有导入功能，删掉就是删掉。
+  // 所以裁剪顺序要挑损失最小的先删：
+  //   ① 已认领（claimed）——认领时原文已经写进 logs[].note（见下方 claim-record），
+  //      删掉记录条目几乎不丢内容，只丢 summary/tags；
+  //   ② 保留（kept）——用户表过态要留着，但没有落地成 log，损失比①大；
+  //   ③ 待认领（pending）——用户还没处理，最后才动。
+  // 旧存档没有 journalTrimmed 这个字段，normalizeGame 读的时候按 false 兜底。
+  if(s.journal.length>500){
+   const rank=(j:JournalEntry)=>j.status==='claimed'?0:j.status==='kept'?1:2;
+   let excess=s.journal.length-500;
+   for(const tier of [0,1,2] as const){
+    for(let i=0;i<s.journal.length&&excess>0;){
+     if(rank(s.journal[i])===tier){s.journal.splice(i,1);excess--;}else i++;
+    }
+   }
+   s.settings.journalTrimmed=true;
+  }
   const candidates=Array.isArray(a.memoryCandidates)?a.memoryCandidates:[];
   for(const raw of candidates){const c=raw as Record<string,unknown>;const fact=(typeof c.text==='string'?c.text.trim():'').slice(0,200);if(!fact)continue;const kind=c.kind==='preference'?'preference':c.kind==='situation'?'situation':'fact';const existing=s.memory.find(m=>m.text===fact);if(existing){existing.weight+=1;existing.lastSeen=at;}else s.memory.push({id:id(),text:fact,kind,firstSeen:at,lastSeen:at,weight:1});}
   while(s.memory.length>40)s.memory.splice(s.memory.reduce((b,m,i,arr)=>m.weight<arr[b].weight||(m.weight===arr[b].weight&&m.lastSeen<arr[b].lastSeen)?i:b,0),1);

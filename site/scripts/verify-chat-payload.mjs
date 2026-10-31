@@ -98,9 +98,25 @@ assert.equal(s.journal[0].summary,'旧1','删的是最旧那条');
 assert.equal(s.settings.journalTrimmed,true,'删掉最旧记录时必须留下标记：否则用户永远不知道有记录消失过');
 // 旧存档里没有这个字段，读出来必须是 false 而不是 undefined，否则界面会显示假的提示。
 assert.equal(normalizeGame({...blank(),settings:{celebrations:true,memoryPromptSeen:false}}).settings.journalTrimmed,false,'旧存档必须兜底成 false');
-assert.ok(/journalTrimmed/.test(source('components/life-timeline.tsx')),'人生时间线必须把这个标记显示给用户，否则等于没记');
-// 「删了」还不够：spec 的原话是「已归档至导出」，提示必须指向能取回的地方。
-assert.ok(/导出存档JSON|导出人生纪念/.test(source('components/life-timeline.tsx')),'裁切提示必须告诉用户去掉哪儿把旧记录取回来');
+const timeline=source('components/life-timeline.tsx');
+assert.ok(/journalTrimmed/.test(timeline),'人生时间线必须把这个标记显示给用户，否则等于没记');
+// 「删了」还不够，提示还必须说实话。导出只含当前存档、也没有导入功能，
+// 所以不能再写「从导出里取回」——那是一条走不通的路，会把用户引到救不回来的操作上。
+assert.ok(/无法恢复/.test(timeline),'裁切提示必须明确说删除不可恢复');
+assert.ok(!/取回/.test(timeline),'不能再承诺「从导出里取回」：导出只含当前存档，也没有导入功能');
+
+// 裁剪顺序：已认领的记录原文已经写进 logs[].note，删掉几乎不丢内容，最先删；
+// 未认领（pending/kept）用户还没处理，最后才动。否则用户还没看就没了。
+let trim=blank();trim.profile={name:'P',focus:'mind',createdAt:at};
+trim.journal=[
+ ...Array.from({length:300},(_,i)=>({id:'p'+i,date:'2026-10-01',at:'2026-10-01T00:00:00.000Z',text:'旧',summary:'待'+i,tags:[],posture:'companion',runId:'rp'+i,status:'pending'})),
+ ...Array.from({length:201},(_,i)=>({id:'c'+i,date:'2026-10-01',at:'2026-10-01T00:00:00.000Z',text:'旧',summary:'认'+i,tags:[],posture:'companion',runId:'rc'+i,status:'claimed'})),
+];
+trim=reduceGame(trim,{type:'chat-turn',clientId:'c-trim',userText:'今天读完一章',reply:'记下了。',posture:'companion',askSwitch:false,records:[{summary:'读完一章',text:'今天读完一章'}],memoryCandidates:[]},new Date(at));
+assert.equal(trim.journal.length,500,'超额后必须回到 500');
+// 300 条原有 pending + 本次新增的 1 条 pending = 301，一条都不能被裁掉。
+assert.equal(trim.journal.filter(j=>j.status==='pending').length,301,'未认领的记录不能被裁掉：它们还没被处理，删掉就真丢了');
+assert.equal(trim.journal.filter(j=>j.status==='claimed').length,199,'超额时应先裁已认领的记录（原文已在 logs[].note 里）');
 
 // 光有 fitChatTurn 不够：发送路径必须真的调用它，否则这道防线只是个没人用的函数。
 const room=source('components/chat-room.tsx');
