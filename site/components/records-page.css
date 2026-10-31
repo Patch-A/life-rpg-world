@@ -1,0 +1,93 @@
+/* 记录页：把「在首页说过的话」变成看得见的一段人生。
+   沿用 assistant-scene / chat-room 的深紫底与 #eee6ff 文字，不引入新配色。 */
+.records-page{display:flex;flex-direction:column;gap:16px;min-width:0}
+
+/* ── 统计带：一条横排放四个数，不占独立卡片 ── */
+.records-stats{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;
+  border:1px solid #a98ec52e;border-radius:16px;overflow:hidden;
+  background:#a98ec52e;
+}
+.records-stat{
+  display:flex;align-items:baseline;justify-content:center;gap:6px;
+  padding:11px 6px;background:#141a2b;min-width:0;
+}
+.records-stat strong{font-size:1.15rem;line-height:1.1;font-weight:650;color:#f2ecff;font-variant-numeric:tabular-nums}
+.records-stat span{font-size:.72rem;color:#a99cc4;white-space:nowrap}
+/* 有待收下的记录时给一格暖色，提醒这里有活没干完；不弹窗、不打扰。 */
+.records-stat[data-tone='warn'] strong{color:#ffd187}
+
+/* ── 领域分布：一条堆叠横条 ── */
+.records-domains{padding:13px 14px;border:1px solid #a98ec52e;border-radius:16px;background:#141a2b}
+.records-domains h2{font-size:.82rem;font-weight:600;margin-bottom:9px;color:#c9bce6}
+.records-domains__stack{display:flex;gap:2px;height:10px;border-radius:999px;overflow:hidden;background:#0e1424}
+.records-domains__stack>span{display:block;min-width:3px}
+.records-domains__legend{display:flex;flex-wrap:wrap;gap:4px 14px;margin:9px 0 0;padding:0;list-style:none}
+.records-domains__legend li{display:flex;align-items:center;gap:5px;font-size:.73rem;color:#a99cc4}
+.records-domains__swatch{width:8px;height:8px;border-radius:2px;flex-shrink:0}
+.records-domains__swatch--plain{background:#6b6787}
+
+.records-note{margin:0;padding:10px 12px;border-radius:12px;background:#3a2438;color:#ffd9e8;font-size:.8rem;line-height:1.7}
+
+/* ── 按天排的时间轴 ── */
+.records-stream{display:flex;flex-direction:column;gap:20px}
+.records-day__head{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+.records-day__head h2{font-size:.92rem;font-weight:600;color:#e6dcfa}
+.records-day__date{font-size:.75rem;color:#8b80a8}
+.records-day__count{margin-left:auto;font-size:.72rem;color:#8b80a8}
+.records-day__list{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+
+.records-entry{
+  display:flex;flex-direction:column;gap:8px;
+  padding:12px 14px;border:1px solid #a98ec52e;border-radius:14px;
+  background:#161c2e;
+}
+/* 只看不动的记录（已转行动的）压暗一点，让待处理的更显眼。 */
+.records-entry[data-status='claimed']{opacity:.72}
+.records-entry__open{
+  display:flex;flex-direction:column;gap:6px;width:100%;
+  padding:0;border:0;background:none;color:inherit;text-align:left;
+}
+.records-entry__head{display:flex;align-items:center;gap:7px;min-width:0}
+.records-entry__dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.records-entry__meta{font-size:.73rem;color:#a99cc4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.records-entry__status{
+  margin-left:auto;flex-shrink:0;padding:1px 7px;border-radius:999px;
+  font-size:.68rem;line-height:1.6;background:#a98ec52e;color:#c9bce6;
+}
+.records-entry__status[data-status='pending']{background:#3a2f1e;color:#ffd187}
+.records-entry__status[data-status='claimed']{background:#1e3a2f;color:#8fe0bb}
+.records-entry__summary{font-size:.9rem;line-height:1.6;color:#efe8ff}
+.records-entry__text{
+  font-size:.83rem;line-height:1.75;color:#b9add4;
+  padding-top:6px;border-top:1px dashed #a98ec533;white-space:pre-wrap;
+}
+.records-entry__actions{display:flex;gap:8px}
+.records-entry__claim{
+  min-height:34px;padding:0 12px;border-radius:10px;
+  border:1px solid #a98ec54d;background:#241f3a;color:#e8dcf8;font-size:.78rem;
+}
+
+/* ── 空态 ── */
+.records-empty{
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  padding:56px 24px;border:1px dashed #a98ec54d;border-radius:20px;
+  background:#121828;text-align:center;color:#b7a9d9;
+}
+.records-empty h2{font-size:1rem;color:#e6dcfa}
+.records-empty p{margin:0;font-size:.85rem;line-height:1.8;max-width:34ch}
+.records-empty button{margin-top:6px}
+
+/* ── 手机：数字带仍是四格一行，但缩紧；记录卡片是主角 ── */
+@media(max-width:600px){
+  .records-page{gap:11px}
+  .records-stats{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .records-stat{flex-direction:column;align-items:center;gap:1px;padding:9px 4px}
+  .records-stat strong{font-size:1.05rem}
+  .records-stat span{font-size:.66rem}
+  .records-domains{padding:11px 12px}
+  .records-entry{padding:11px 12px}
+  .records-entry__summary{font-size:.87rem}
+  /* 触碰目标不小于 36px，避免点不中。 */
+  .records-entry__claim{min-height:36px}
+}
