@@ -68,6 +68,24 @@
   border:1px solid #a98ec54d;background:#241f3a;color:#e8dcf8;font-size:.78rem;
 }
 
+/* ── 走掉的怪兽 ── */
+/* 这一块是往回看的，所以比记录流更静：没有按钮、没有状态标、边框也是虚的。 */
+.records-departed{display:flex;flex-direction:column;gap:8px}
+.records-departed__list{display:flex;flex-direction:column;gap:8px;margin:0;padding:0;list-style:none}
+.records-epitaph{
+  padding:11px 13px;border:1px dashed #a98ec540;border-radius:14px;background:#141a2b;
+  display:flex;flex-direction:column;gap:5px;min-width:0;
+}
+.records-epitaph__head{display:flex;align-items:center;gap:8px;min-width:0}
+.records-epitaph__name{font-size:.86rem;font-weight:500;color:#d9cdf2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.records-epitaph__kind{margin-left:auto;flex:none;font-size:.7rem;color:#8f86ab}
+/* 碑文用引文口径：左右两条竖线，明确它是「被留下的话」而不是一段说明。 */
+.records-epitaph__text{
+  margin:0;padding:2px 0 2px 10px;border-left:2px solid #6f5f9680;
+  font-size:.82rem;line-height:1.75;color:#c6bcdd;overflow-wrap:anywhere;
+}
+.records-epitaph__meta{font-size:.7rem;color:#7f7897}
+
 /* ── 空态 ── */
 .records-empty{
   display:flex;flex-direction:column;align-items:center;gap:10px;
@@ -90,4 +108,9 @@
   .records-entry__summary{font-size:.87rem}
   /* 触碰目标不小于 36px，避免点不中。 */
   .records-entry__claim{min-height:36px}
+  .records-epitaph{padding:10px 12px}
+  .records-epitaph__name{font-size:.95rem}
+  .records-epitaph__kind{font-size:.78rem}
+  .records-epitaph__text{font-size:.9rem}
+  .records-epitaph__meta{font-size:.78rem}
 }

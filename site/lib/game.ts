@@ -1,5 +1,6 @@
 import {validGender,validAvatar,characterGender,canWear,resolveEquipped,type Gender,type AvatarId} from './appearance';
 import {validateBirth,celebrationSettings,ageAt,adultDate,birthdaySchedule,type BirthInfo,type BirthdayOccurrence,type BirthdaySettings,type BirthdayRecord} from './birthday';
+import {hitMonsters,canSummonMonster,MONSTER_WEIGHT_HP} from './monsters';
 export const domains = [
  {id:'mind', name:'认知', region:'知晓之境', color:'#ad9cff', description:'把好奇心，变成你的能力。', skill:'知识探索'},
  {id:'health', name:'健康', region:'生命森林', color:'#67dfb5', description:'照顾身体，也为冒险积蓄力量。', skill:'活力养成'},
@@ -15,7 +16,20 @@ export type Log = {id:string; taskId:string; title:string; domain:Domain; value:
 export type JournalEntry={id:string;date:string;at:string;text:string;summary:string;domain?:Domain;tags:string[];posture:'companion'|'counselor';runId:string;status:'pending'|'claimed'|'kept';logId?:string};
 export type ChatTurn={id:string;date:string;at:string;role:'user'|'assistant';text:string;posture?:'companion'|'counselor';askSwitch?:boolean};
 export type MemoryFact={id:string;text:string;kind:'fact'|'preference'|'situation';firstSeen:string;lastSeen:string;weight:number};
-export type Monster={id:string;name:string;kind:'life'|'setback'|'emotion'|'jobless';hp:number;maxHp:number;createdAt:string};
+// 怪兽。`jobless` 这一档 2026-10-31 砍掉了——从写进类型起就没有任何东西会填它。
+// 类型收窄了，但旧存档里真有一条的话不清数据：monsters.ts 的 monsterKind() 按 life 兜底。
+export type MonsterKind='life'|'setback'|'emotion';
+// ref 是这一击的证据 id（那一轮对话 / 那一条 log），用来去重：
+// 没有它，重复保存或编辑记录会把同一件事反复算成伤害。
+export type MonsterHit={at:string;kind:'said'|'acted'|'felt'|'cared';ref:string;note:string};
+export type Monster={id:string;name:string;kind:MonsterKind;hp:number;maxHp:number;createdAt:string;
+ // 已经在落库的数据里存在的老条目可能没有下面这些字段，读取处一律按可选处理。
+ sourceRunId?:string;
+ /** 它在哪句话里出现——用户当时的原话。走掉时就是碑文。 */
+ sourceText?:string;
+ hits?:MonsterHit[];
+ resolvedAt?:string;
+ epitaph?:string};
 export type Game = {profile:null|{name:string; focus:Domain; createdAt:string;gender?:Gender;avatarId?:AvatarId;birth?:BirthInfo}; goals:Goal[]; tasks:Task[]; logs:Log[]; events:{id:string;choice:string;at:string}[]; milestones:LifeMilestone[]; claims:string[]; equipped:string; birthday:BirthdaySettings|null;birthdays:BirthdayRecord[];birthdayQueue:BirthdayOccurrence[];reviews:ActionReview[];agentAccepts:string[];journal:JournalEntry[];chat:ChatTurn[];memory:MemoryFact[];monsters:Monster[];settings:{celebrations:boolean;memoryPromptSeen:boolean;chatConsent?:boolean;journalTrimmed?:boolean}};
 export type LifeMilestone={id:string;kind:string;title:string;date:string;note:string;photos:string[];at:string;updatedAt:string;archived:boolean;datePrecision?:'day'|'year'|'unknown';history?:{date:string;datePrecision?:'day'|'year'|'unknown';note:string;at:string;title?:string}[]};
 export const milestoneKinds=[{id:'adult',title:'18 岁成人礼',category:'人生转折',reward:'成年礼装',description:'把属于你的成人礼，珍藏在这里。'},{id:'first-job',title:'第一份工作',category:'人生转折',reward:'初入职场徽章',description:'记录第一次走进职场的日子。'},{id:'first-salary',title:'第一次领工资',category:'值得纪念',reward:'第一份收获徽章',description:'这一份回报，属于认真迈步的你。'},{id:'graduation',title:'毕业',category:'人生转折',reward:'新的起点徽章',description:'告别一个阶段，也开启一段新旅程。'},{id:'custom',title:'我的重要时刻',category:'自定义纪念',reward:'人生纪念',description:'重要与否，由你自己定义。'}] as const;
@@ -24,6 +38,9 @@ export function normalizeGame(value:Game,today=day()):Game {
  const s={...blank(),...value,reviews:value.reviews||[],agentAccepts:value.agentAccepts||[],journal:value.journal||[],chat:value.chat||[],memory:value.memory||[],monsters:value.monsters||[],milestones:value.milestones||[],claims:value.claims||[],equipped:value.equipped||'explorer',birthday:value.birthday||null,birthdays:value.birthdays||[],birthdayQueue:value.birthdayQueue||[],settings:{celebrations:value.settings?.celebrations??true,memoryPromptSeen:value.settings?.memoryPromptSeen??false,chatConsent:value.settings?.chatConsent??false,journalTrimmed:value.settings?.journalTrimmed??false}};
  if(s.profile?.gender)s.profile={...s.profile,avatarId:s.profile.gender};
  s.equipped=resolveEquipped(characterGender(s.profile),s.equipped,s.claims);
+ // 老存档里的怪兽没有 hits 字段，读取处（hitMonsters、recentHits）都要能扛住 undefined，
+ // 这里补一个空数组只是为了少一层判断，不是必需。数据本身一个字不改。
+ s.monsters=(s.monsters||[]).map(m=>Array.isArray(m.hits)?m:{...m,hits:[]});
  return syncBirthdayQueue(s,today);
 }
 export function syncBirthdayQueue(s:Game,today=day()):Game{
@@ -123,6 +140,34 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
   if(a.review){if(s.reviews.length>=200)throw Error('复盘记录已达容量上限，请导出并整理');const r=a.review as Record<string,unknown>;if(!Array.isArray(r.sourceLogIds)||!r.sourceLogIds.length||r.sourceLogIds.length>12||r.sourceLogIds.some(v=>!s.logs.some(l=>l.id===v&&l.goalId===g!.id&&!l.undone)))throw Error('复盘引用已改变，请重新生成');s.reviews.push({id:rid,goalId:g.id,summary:str(r.summary,600),adjustment:str(r.adjustment,300),sourceLogIds:r.sourceLogIds as string[],at,taskId});}
   if(!a.candidate&&!a.review)throw Error('没有可确认的内容');s.agentAccepts.push(rid);return s;
  }
+ // ── 情绪怪兽 ──
+ // 落库只发生在用户点了「放进去」之后。模型只能提议（见 lib/ai/chat-contract.ts），
+ // 它说了算就等于替用户决定「什么事值得变成游戏里的一关」，那正是这套设计要避免的。
+ if(a.type==='monster-summon'){
+  const rid=str(a.clientId,80);
+  // 同一轮对话最多放一只：重试、重复点都不会多出来。
+  if(s.monsters.some(m=>m.sourceRunId===rid))return s;
+  if(!canSummonMonster(s))throw new Error('星球上已经有 3 只了，先让一只走掉吧');
+  const kind=a.kind==='setback'?'setback':a.kind==='emotion'?'emotion':'life';
+  const weight=a.weight===2?2:a.weight===3?3:1;
+  const hp=MONSTER_WEIGHT_HP[weight];
+  // 名字可以空：够不够格不看有没有名字（2026-10-31 拍板），空就按类别兜底，用户随时能改。
+  const proposed=typeof a.name==='string'?a.name.trim().slice(0,20):'';
+  const fallback=kind==='setback'?'没做成的那件事':kind==='emotion'?'说不清的那团':'正在扛的事';
+  s.monsters.push({id:id(),name:proposed||fallback,kind,hp,maxHp:hp,createdAt:at,sourceRunId:rid,sourceText:text(a.sourceText,400),hits:[]});
+  return s;
+ }
+ // 名字是模型起的，用户可以改。
+ if(a.type==='monster-rename'){
+  const m=s.monsters.find(m=>m.id===a.id);if(!m)throw new Error('这只已经不在了');
+  m.name=str(a.name,20);return s;
+ }
+ // 手动让它走。上限是 3 只，没有这个出口就会卡死：满员之后再也放不进新的。
+ // 走掉和「薄到看不见」一样留碑文，一样进记录页的时间线。
+ if(a.type==='monster-release'){
+  const m=s.monsters.find(m=>m.id===a.id&&!m.resolvedAt);if(!m)throw new Error('这只已经走了');
+  m.resolvedAt=at;m.epitaph=m.epitaph||m.sourceText||'';return s;
+ }
  if(a.type==='chat-turn'){
   const rid=str(a.clientId,80);if(s.chat.some(t=>t.id===rid))return s;
   // 同意标记随对话一起落库：/api/chat 已用 z.literal(true) 校验过 consent 与 adult，
@@ -155,6 +200,17 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
   const candidates=Array.isArray(a.memoryCandidates)?a.memoryCandidates:[];
   for(const raw of candidates){const c=raw as Record<string,unknown>;const fact=(typeof c.text==='string'?c.text.trim():'').slice(0,200);if(!fact)continue;const kind=c.kind==='preference'?'preference':c.kind==='situation'?'situation':'fact';const existing=s.memory.find(m=>m.text===fact);if(existing){existing.weight+=1;existing.lastSeen=at;}else s.memory.push({id:id(),text:fact,kind,firstSeen:at,lastSeen:at,weight:1});}
   while(s.memory.length>40)s.memory.splice(s.memory.reduce((b,m,i,arr)=>m.weight<arr[b].weight||(m.weight===arr[b].weight&&m.lastSeen<arr[b].lastSeen)?i:b,0),1);
+  // ── 怪兽挨打：来源一「说出来」、来源三「情绪变好」──
+  // 放在最后，此时 journal 已经写完，才数得清这一轮到底有没有产生新记录。
+  // 场上没有活跃怪兽时这一整段不生效——mood 只为怪兽服务，不进任何统计。
+  if(s.monsters.some(m=>!m.resolvedAt)){
+   // 「说出来」= 这一轮真的留下了一条新记录，不是「这一轮说了话」。
+   // 只闲聊不记录不该扣血，否则陪着说几句空话就能把怪打没。
+   const saidThisTurn=s.journal.filter(j=>j.runId===rid);
+   if(saidThisTurn.length)hitMonsters(s,{kind:'said',ref:rid+':said',note:saidThisTurn[0].summary},at);
+   // 「情绪变好」唯一没有实物证据，所以判定收得最紧：拿不准就是 same（缺省），一律不扣。
+   if(a.mood==='lighter')hitMonsters(s,{kind:'felt',ref:rid+':felt',note:userText.slice(0,120)},at);
+  }
   return s;
  }
  if(a.type==='claim-record'){
@@ -165,6 +221,9 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
   const taskDomain=entry.domain??'mind',taskId=id(),logId=id(),title=entry.summary.slice(0,80);
   s.tasks.push({id:taskId,title,domain:taskDomain,target:1,unit:'次',repeat:false,goalId:'',archived:false,evidence:'optional',originRunId:entry.runId});
   s.logs.push({id:logId,taskId,title,domain:taskDomain,value:1,unit:'次',goalId:'',xp:0,date:today,at,undone:false,note:entry.text,source:'manual'});
+  // 这里**不**再给怪兽扣一次「做了一件小事」。这条记录是刚才那轮对话产生的，
+  // 那一刻已经按「说出来」扣过 10 了；收下只是把同一件事换了个形状，不是又做了一件事。
+  // 两处都扣的话，「说一句 + 收下」= 20 血，等于把规则二的四源等权变成一个漏洞。
   recalculate(s);entry.status='claimed';entry.logId=logId;return s;
  }
  // 改摘要：只动 summary。原文、领域、时刻、状态与关联日志都不动，也不重算经验。
@@ -222,7 +281,22 @@ export function reduceGame(current:Game,a:Action,now=new Date()):Game {
    const g=s.goals.find(g=>g.id===t.goalId);if(g?.paused)throw new Error('请先恢复这条主线');if(g?.unit==='元')throw new Error('存钱目标请直接记账，旧行动可归档');
    if(t.evidence==='photo'&&!m.photos.length)throw new Error('这项行动需要至少一张照片');
    if(['步','次','页'].includes(t.unit)&&!Number.isInteger(value))throw new Error('这个单位需要整数');
+   // 这一步记下去之前完成了多少：怪兽只认「跨过达标线」的那一次，
+   // 同一件事分三次记不该算三次。目标已经达成的再记也只是累计，不重复扣血。
+   const before=done(s,t),target=t.target,title=t.title;
+   // 去重键和上面 recalculate 的 cap 用同一套口径（taskId + 日期），这里再抄一遍会漂。
+   const healRef=t.id+(t.repeat?':'+m.date:':once');
    s.logs.push({id:clientId,taskId:t.id,title:t.title,domain:t.domain,value,unit:t.unit,goalId:t.goalId,xp:0,at,undone:false,...m});
+   recalculate(s);
+   if(before<target&&done(s,t)>=target&&s.monsters.some(x=>!x.resolvedAt)){
+    // 来源二「做了一件小事」和来源四「照顾自己」都是 10，区别只在怎么念。
+    // 健康和关系类的记录算「照顾自己」——睡眠、吃饭、散步、见人都在这一档。
+    // 用 taskId+日期 当 ref，不只是为了防「删除再记一次」刷血：
+    // 它和 XP 的「同领域每天一条」是同一套口径，两处说法不会打架。
+    const selfCare=t.domain==='health'||t.domain==='social';
+    hitMonsters(s,{kind:selfCare?'cared':'acted',ref:healRef,note:title},at);
+   }
+   return s;
   }
   recalculate(s);return s;
  }

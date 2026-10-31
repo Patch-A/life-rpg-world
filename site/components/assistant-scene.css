@@ -51,6 +51,17 @@
 .assistant-scene__replay:hover{background:#443356;border-color:#c6a6ed}
 .assistant-scene__replay:focus-visible{outline:2px solid #d6baff;outline-offset:2px}
 .assistant-scene__replay[aria-pressed='true']{background:#443356;border-color:#c6a6ed;box-shadow:0 0 0 1px #c6a6ed55}
+/* 首页那一块「星球上还有东西在」的影子。位置在场景右下方，
+   刻意做得没有名字、没有轮廓光、没有可点的样子：它不是入口，只是一个信号。
+   不接指针事件，点它等同于点角色（重读）。 */
+.assistant-scene__shade{
+  position:absolute;
+  right:12%;bottom:6%;
+  width:min(22%,104px);aspect-ratio:1/1;
+  pointer-events:none;
+  transition:opacity .6s ease;
+}
+.assistant-scene__shade svg{display:block;width:100%;height:100%;filter:blur(.6px)}
 @keyframes assistant-halo{0%,100%{opacity:.72;transform:translate(-50%,-50%) scale(.98)}50%{opacity:1;transform:translate(-50%,-50%) scale(1.03)}}
 @media(max-width:600px){
   .assistant-scene{height:212px}

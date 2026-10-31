@@ -19,6 +19,21 @@ const quickReplySchema = z.preprocess(shape, z.object({
  label: z.any().transform(v => cut(v, 20)),
  kind: z.enum(['say', 'accept-switch']).catch('say'),
 }).transform(q => q.label ? q : null));
+// 怪兽提议。**只认 appear**：契约里本来还留了 wound / vanish，但那是把「什么时候挨打、
+// 什么时候消失」的判断权交给模型，而这两件事必须由服务端按事实算（见 lib/monsters.ts）。
+// 模型说 wound 就当没说。
+//
+// **名字可以是空的**。2026-10-31 拍板：够不够格不看这件事有没有名字，看它是不是
+// 心情 / 单次事件 / 自我评价。逼模型起名等于把「说不清」的那一类重新挡在门外，
+// 而难受的事往往恰恰说不清。名字缺省由服务端按类别兜底，用户随时能改。
+const monsterKindIds = ['life', 'setback', 'emotion'] as const;
+const monsterSchema = z.preprocess(shape, z.object({
+ event: z.any().transform(v => v === 'appear' ? 'appear' : 'none'),
+ kind: z.any().transform(v => (monsterKindIds as readonly string[]).includes(v as string) ? v as typeof monsterKindIds[number] : undefined),
+ name: z.any().transform(v => cut(v, 20)),
+ weight: z.any().transform(v => v === 2 ? 2 : v === 3 ? 3 : 1),
+ note: z.any().transform(v => cut(v, 200)),
+}).transform(m => m.event === 'appear' && m.kind ? { event: 'appear' as const, kind: m.kind, name: m.name, weight: m.weight as 1 | 2 | 3, note: m.note } : null));
 // 顶层：reply 空/非字符串无法兜底（没话可说这轮没意义），其余字段一律归一而不整轮失败。
 const list = (v: unknown) => Array.isArray(v) ? v : (v && typeof v === 'object' ? [v] : []);
 const bool = (v: unknown) => v === true || v === 'true' || v === 1 || v === '1';
@@ -29,6 +44,10 @@ export const chatResultSchema = z.object({
  records: z.preprocess(list, z.array(recordSchema)).transform(a => a.flatMap(x => x ? [x] : [])),
  memoryCandidates: z.preprocess(list, z.array(memoryCandidateSchema)).transform(a => a.flatMap(x => x ? [x] : [])),
  quickReplies: z.preprocess(list, z.array(quickReplySchema)).transform(a => a.flatMap(x => x ? [x] : [])),
+ monster: z.unknown().transform(v => monsterSchema.safeParse(v).data ?? null).catch(null),
+ // 只会和最近 3 轮比。缺省就是 same：宁可漏判，不许瞎判——
+ // 误判成 lighter 等于白送 15 血，那是这个字段唯一的风险。
+ mood: z.any().transform(v => v === 'lighter' || v === 'heavier' ? v : 'same' as const).catch('same' as const),
 });
 export type ChatResult = z.infer<typeof chatResultSchema>;
 export type Posture = typeof postures[number];

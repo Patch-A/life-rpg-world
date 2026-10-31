@@ -5,6 +5,7 @@ import {Download,Send,Trash2,Undo2} from 'lucide-react';
 import {toast} from 'sonner';
 import {ApiError,readJSON,requestError} from '@/lib/api-client';
 import {type Action,type Game,type JournalEntry,availableXP,day,domains} from '@/lib/game';
+import {MONSTER_KINDS,MONSTER_WEIGHT_HP} from '@/lib/monsters';
 import {TIRED_LINE} from '@/lib/assistant-line';
 import {exportJournal} from '@/lib/export-journal';
 import {newId} from '@/lib/ids';
@@ -94,6 +95,9 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
   const [confirmDelete,setConfirmDelete]=useState<string|null>(null);
   // 手机上「今天的记录」默认收起，只占一行；桌面版不看这个状态，列表始终展开。
   const [showRecords,setShowRecords]=useState(false);
+  // 模型提了一只怪，等用户点头。**只在这一次会话里有效**：它不是存档数据，
+  // 刷新之后消失是对的——用户没接话就等于没要。
+  const [monsterOffer,setMonsterOffer]=useState<{runId:string;sourceText:string;name:string;kind:'life'|'setback'|'emotion';weight:1|2|3;note:string}|null>(null);
   const flight=useRef(false);
   // 切咨询师的同意只对紧跟的那一次请求有效，发送时立刻清零。
   const consentOnce=useRef(false);
@@ -140,7 +144,9 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
       // run.id 就是 requestId，chat-turn 用它做 clientId，重复提交天然幂等。
       let saved=false;
       try{
-        const action={type:'chat-turn' as const,clientId:run.id,userText:text,reply:run.reply.reply,posture:run.reply.posture,askSwitch:run.reply.askSwitch,records:run.reply.records,memoryCandidates:run.reply.memoryCandidates};
+        // monster 和 mood 必须一起进这一条：reducer 靠它们决定怪兽挨多少、哪种来源。
+        // 漏传的话模型说了 lighter 也没人听，规则二会静默失效一半。
+        const action={type:'chat-turn' as const,clientId:run.id,userText:text,reply:run.reply.reply,posture:run.reply.posture,askSwitch:run.reply.askSwitch,records:run.reply.records,memoryCandidates:run.reply.memoryCandidates,monster:run.reply.monster??undefined,mood:run.reply.mood};
         // 直接发会被 /api/game 的 10KB 上限挡成 413，而重试复用的是同一份 payload，
         // 于是这条对话永远存不上、额度却已经扣过一次。先按 reducer 的同一套位数压进上限。
         const fitted=fitChatTurn(action);
@@ -171,6 +177,10 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
     setQuickReplies(done.reply.quickReplies);
     onLine(done.reply.reply);
     onPosture(done.reply.posture);
+    // 怪兽提议：只在落库成功之后才问。存都没存上就提一只怪，会让人以为它已经在那儿了。
+    const offer=done.reply.monster;
+    if(offer&&offer.event==='appear')setMonsterOffer({runId:done.id,sourceText:text,name:offer.name,kind:offer.kind,weight:offer.weight,note:offer.note});
+    else setMonsterOffer(null);
     if(!consentDone){
       // 同意标记由 chat-turn 自己落库（见 lib/game.ts），这里只更新本次会话的界面状态。
       setConsentGranted(true);
@@ -183,6 +193,16 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
     setDraft(reply.label.slice(0,1000));
     inputRef.current?.focus();
   }
+
+  // 放进去 = 用户点头。模型提议的东西到这一步才真的落库。
+  async function summonMonster(){
+    if(!monsterOffer)return;
+    const ok=await act({type:'monster-summon',clientId:monsterOffer.runId,kind:monsterOffer.kind,name:monsterOffer.name,weight:monsterOffer.weight,sourceText:monsterOffer.sourceText});
+    if(ok)setMonsterOffer(null);
+  }
+  // 已经在星球上的那只不该再问一遍：用户可能点了按钮但界面还没刷新。
+  const offerLive=monsterOffer&&!state.monsters.some(m=>m.sourceRunId===monsterOffer.runId)?monsterOffer:null;
+  const offerKind=offerLive?MONSTER_KINDS.find(k=>k.id===offerLive.kind):undefined;
 
   return <section className="chat-room" aria-label="记录官对话">
     <div className="chat-room__stream" ref={streamRef} role="log" aria-live="polite">
@@ -223,6 +243,29 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
         <p>对话原文（最近 40 条）、长期记忆（最多 40 条）、目标与近期行动记录、储蓄进度、等级与今日经验。照片、生日、人生纪念不会发送。</p>
       </details>
       {!canSend&&<p className="chat-room__hint">勾选以上两项后就能开始对话；手动记录一直可用。</p>}
+    </div>}
+
+    {/* 怪兽提议：不弹窗、不打断，只在输入框上面多一行。
+        要不要把这件事变成一个「形状」，权力留给你——有时候人只是想说说。 */}
+    {offerLive&&<div className="chat-room__monster" role="group" aria-label="要不要把它放进星球">
+      <div className="chat-room__monster-copy">
+        <span className="chat-room__monster-kicker">要不要把它放进星球？</span>
+        <input
+          className="chat-room__monster-name"
+          value={offerLive.name}
+          maxLength={20}
+          disabled={busy||sending}
+          placeholder="给它起个名字（可以不起）"
+          aria-label="这只怪的名字"
+          onChange={e=>setMonsterOffer({...offerLive,name:e.target.value})}
+        />
+        <p className="chat-room__monster-note">{offerLive.note||`它落在${offerKind?.where??'星球上'}。`}</p>
+        <span className="chat-room__monster-meta">{offerKind?.label??'正在扛的事'} · {MONSTER_WEIGHT_HP[offerLive.weight]} 点厚</span>
+      </div>
+      <div className="chat-room__monster-actions">
+        <button type="button" className="chat-room__monster-yes" disabled={busy||sending} onClick={summonMonster}>放进去</button>
+        <button type="button" className="chat-room__monster-no" disabled={busy||sending} onClick={()=>setMonsterOffer(null)}>不用，只是聊聊</button>
+      </div>
     </div>}
 
     <form className="chat-room__compose" onSubmit={send}>

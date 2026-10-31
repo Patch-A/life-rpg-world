@@ -1,0 +1,260 @@
+/* 情绪怪兽在星球上留下的影子。
+   这一层只负责「看得见、点得开」，不负责叙事：影子不跑、不动、不主动靠近你。 */
+
+.monster-layer{
+  position:absolute;
+  inset:0;
+  z-index:1;
+  pointer-events:none;
+}
+
+/* 三块地方是固定的（spec §1.6）：位置不跟数据顺序走，用户隔天回来还能原地找到它。
+   锚点是按领域标签的实测位置挑的空档——标签是 z-index 2，影子在 1，点标签永远点到标签，
+   但名字压到标签底下会读成一个没主的字，所以位置本身就要错开：
+   知晓之境 t29-41/l65-95，生命森林 t50-62/l4-34，创造之城 t72-84/l61-91（366 宽下实测）。 */
+.monster-shade-group{
+  position:absolute;
+  width:clamp(72px,21%,132px);
+  aspect-ratio:1/1;
+}
+/* 左上：说不清的情绪绕着星球外缘，落在星球图外的暗色天空里。 */
+.monster-shade-group--emotion{left:1%;top:13%}
+/* 右上：挫折裂在做事的地方，卡在「知晓之境」和「创造之城」中间那段空档。 */
+.monster-shade-group--setback{right:0;top:46%}
+/* 左下：生活的事落在林子里，避开「生命森林」和角落的坐标字。 */
+.monster-shade-group--life{left:1%;top:67%}
+
+.monster-shade{
+  position:absolute;
+  inset:0;
+  display:block;
+  padding:0;
+  border:0;
+  background:transparent;
+  /* 影子可以铺到领域标签下面，但点标签必须点到标签：这一层只在自己身上接管指针。 */
+  pointer-events:auto;
+  cursor:pointer;
+  border-radius:14px;
+  transition:filter .2s ease,transform .2s ease;
+}
+.monster-shade svg{display:block;width:100%;height:100%;overflow:visible}
+.monster-shade:hover{filter:brightness(1.2)}
+.monster-shade[data-selected]{filter:brightness(1.4) drop-shadow(0 0 6px #c6a6ed88)}
+.monster-shade:focus-visible{outline:2px solid #d6baff;outline-offset:3px}
+
+/* 名字压在身体下方。做得比领域标签轻得多：不描边、不投影、字更小——
+   它是「这块地方叫什么」，不是第二个可以点的按钮。 */
+.monster-shade__label{
+  position:absolute;
+  left:50%;
+  top:78%;
+  transform:translateX(-50%);
+  max-width:170%;
+  padding:0 6px;
+  border-radius:999px;
+  background:#0b1022c4;
+  color:#cdc0e4;
+  font-size:10px;
+  line-height:1.5;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  pointer-events:none;
+}
+
+/* 落地的那两只脚下一小片暗，把剪影从亮图上托起来；不落地的那只没有。 */
+.monster-shade__ground{filter:blur(4px);opacity:.55}
+
+/* 生活的叶子：垂着，慢慢晃。 */
+.monster-shade[data-kind='life'] .monster-shade__hanging{
+  animation:monster-dangle 5.4s ease-in-out infinite;
+  transform-box:view-box;
+  transform-origin:50px 20px;
+}
+
+/* 挫折的裂缝稍微发亮，因为它是这道口子本身，不是装饰。 */
+.monster-shade[data-kind='setback'] .monster-shade__crack{filter:drop-shadow(0 0 2.5px #7b5bb0)}
+
+/* 说不清的情绪：整圈环慢慢转。转的是环，不是本体——本体原地待着，
+   这样「它在，但没在做什么」。 */
+.monster-shade[data-kind='emotion'] .monster-shade__orbit{
+  animation:monster-orbit 30s linear infinite;
+  transform-box:view-box;
+  transform-origin:50px 49px;
+}
+.monster-shade__eye{animation:monster-blink 7.2s ease-in-out infinite;transform-box:fill-box;transform-origin:50% 50%}
+
+@keyframes monster-dangle{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
+@keyframes monster-orbit{to{transform:rotate(360deg)}}
+@keyframes monster-blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.15)}}
+
+/* ---- 点开后的卡 ---- */
+
+.monster-card{
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  margin:0 25px 20px;
+  padding:14px 16px;
+  border:1px solid #a98ec53d;
+  border-left:3px solid #8a7ca8;
+  border-radius:14px;
+  background:#161b2e;
+  color:#e8e0f7;
+}
+.monster-card__head{display:flex;align-items:center;gap:8px}
+.monster-card__dot{flex:none;width:8px;height:8px;border-radius:50%}
+.monster-card__kind{flex:1;min-width:0;color:#a99cc0;font-size:11.5px;letter-spacing:.04em}
+.monster-card__close{
+  flex:none;
+  min-height:28px;
+  padding:0 8px;
+  border:1px solid transparent;
+  border-radius:9px;
+  background:transparent;
+  color:#b7a9d9;
+  font-size:11.5px;
+  cursor:pointer;
+}
+.monster-card__close:hover{border-color:#a98ec54d;color:#e8dcf8}
+.monster-card__close:focus-visible{outline:2px solid #d6baff;outline-offset:2px}
+
+.monster-card__title-row{display:flex;align-items:center;gap:10px}
+.monster-card__name{margin:0;font-size:17px;font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+.monster-card__rename-open{
+  flex:none;
+  margin-left:auto;
+  min-height:28px;
+  padding:0 8px;
+  border:1px solid transparent;
+  border-radius:9px;
+  background:transparent;
+  color:#b7a9d9;
+  font-size:11.5px;
+  cursor:pointer;
+}
+.monster-card__rename-open:hover:not(:disabled){border-color:#a98ec54d;color:#e8dcf8}
+.monster-card__rename-open:disabled{opacity:.5;cursor:not-allowed}
+.monster-card__rename{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.monster-card__name-input{
+  flex:1 1 160px;
+  min-width:0;
+  height:38px;
+  min-height:38px;
+  padding:0 10px;
+  border:1px solid #a98ec54d;
+  border-radius:10px;
+  background:#191727;
+  color:#eee6ff;
+  /* 小于 16px 会触发 iOS 自动放大，这里按输入框口径走，不跟正文一起缩。 */
+  font-size:16px;
+}
+.monster-card__name-input:focus-visible{outline:2px solid #c6a6ed;outline-offset:1px}
+.monster-card__save,.monster-card__cancel{
+  display:inline-flex;
+  align-items:center;
+  min-height:38px;
+  padding:0 12px;
+  border-radius:10px;
+  font-size:12.5px;
+  cursor:pointer;
+}
+.monster-card__save{border:1px solid #7c5cc4;background:#4a3770;color:#f1e8ff}
+.monster-card__save:hover:not(:disabled){background:#5c4589}
+.monster-card__cancel{border:1px solid #a98ec54d;background:transparent;color:#d9cdf2}
+.monster-card__cancel:hover:not(:disabled){border-color:#c6a6ed}
+.monster-card__save:disabled,.monster-card__cancel:disabled{opacity:.5;cursor:not-allowed}
+
+/* 它出现那天的原话。用引文样式而不是普通段落：这是被留档的话，不是解释。 */
+.monster-card__origin{
+  margin:0;
+  padding:8px 10px 8px 12px;
+  border-left:2px solid #6f5f96;
+  border-radius:0 10px 10px 0;
+  background:#1b1a2c;
+  color:#cfc6e4;
+  font-size:12.5px;
+  line-height:1.7;
+  overflow-wrap:anywhere;
+  white-space:pre-wrap;
+}
+.monster-card__origin-tag{display:block;margin-bottom:3px;color:#8f86ab;font-size:11px}
+
+.monster-card__thin{display:flex;flex-direction:column;gap:5px}
+.monster-card__thin-row{display:flex;align-items:baseline;gap:8px;font-size:12px;color:#b7a9d9}
+.monster-card__thin-num{margin-left:auto;color:#8f86ab;font-size:11px}
+.monster-card__bar{height:4px;border-radius:999px;background:#ffffff14;overflow:hidden}
+.monster-card__bar>span{display:block;height:100%;border-radius:999px;transition:width .4s ease}
+
+.monster-card__hits{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:5px}
+.monster-card__hits li{display:flex;gap:8px;align-items:baseline;font-size:12px;line-height:1.6}
+.monster-card__hit-kind{flex:none;padding:0 7px;border-radius:999px;background:#ffffff12;color:#cdbdf0;font-size:11px}
+.monster-card__hit-note{min-width:0;color:#a99cc0;overflow-wrap:anywhere}
+.monster-card__idle{margin:0;color:#8f86ab;font-size:12px;line-height:1.7}
+
+.monster-card__release{
+  align-self:flex-start;
+  min-height:32px;
+  padding:0 10px;
+  border:1px solid transparent;
+  border-radius:10px;
+  background:transparent;
+  color:#8f86ab;
+  font-size:11.5px;
+  cursor:pointer;
+}
+.monster-card__release:hover:not(:disabled){border-color:#a98ec54d;color:#c9bce6}
+.monster-card__release:disabled{opacity:.5;cursor:not-allowed}
+.monster-card__confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;color:#c9bce6;font-size:12px;line-height:1.6}
+.monster-card__confirm>span{flex:1 1 100%}
+.monster-card__confirm-yes,.monster-card__confirm-no{
+  display:inline-flex;
+  align-items:center;
+  min-height:34px;
+  padding:0 12px;
+  border-radius:10px;
+  font-size:12.5px;
+  cursor:pointer;
+}
+.monster-card__confirm-yes{border:1px solid #8a7ca8;background:#3b3352;color:#e8dcf8}
+.monster-card__confirm-no{border:1px solid #a98ec54d;background:transparent;color:#cdbfe8}
+.monster-card__confirm-yes:disabled,.monster-card__confirm-no:disabled{opacity:.5;cursor:not-allowed}
+.monster-card__release:focus-visible,
+.monster-card__confirm-yes:focus-visible,
+.monster-card__confirm-no:focus-visible{outline:2px solid #d6baff;outline-offset:2px}
+
+/* 静音模式（.reduced）和系统级减弱动效走同一条路：影子保持位置，不再晃动、不再旋转。
+   位置本身就是信息——关掉动画不能让它跑到别的地方。 */
+@media(prefers-reduced-motion:reduce){
+  .monster-shade[data-kind='life'] .monster-shade__hanging,
+  .monster-shade[data-kind='emotion'] .monster-shade__orbit,
+  .monster-shade__eye{animation:none!important}
+}
+.reduced .monster-shade__hanging,
+.reduced .monster-shade__orbit,
+.reduced .monster-shade__eye{animation:none!important}
+
+@media(max-width:760px){
+  /* 屏幕上这三个是主要的触控目标，实测宽度 72px 在 366 的屏上偏小，抬到 84px。 */
+  .monster-shade-group{width:clamp(84px,25%,140px)}
+  .monster-shade-group--emotion{left:0;top:12%}
+  .monster-shade-group--setback{right:0;top:45%}
+  .monster-shade-group--life{left:0;top:66%}
+  .monster-shade__label{font-size:11.5px;top:80%}
+  .monster-card{margin:0 18px 16px;padding:13px 14px;gap:9px}
+  .monster-card__kind{font-size:13px}
+  .monster-card__close,.monster-card__rename-open{font-size:13px;min-height:36px}
+  .monster-card__name{font-size:18px}
+  /* 触控目标：卡片上这几个按钮是本文唯一能点的东西，40px 以下按不准。 */
+  .monster-card__save,.monster-card__cancel{font-size:14px;min-height:44px}
+  .monster-card__origin{font-size:14px}
+  .monster-card__origin-tag{font-size:12.5px}
+  .monster-card__thin-row{font-size:13.5px}
+  .monster-card__thin-num{font-size:12.5px}
+  .monster-card__hits li{font-size:13.5px}
+  .monster-card__hit-kind{font-size:12.5px}
+  .monster-card__idle{font-size:13.5px}
+  .monster-card__release{font-size:13px;min-height:40px}
+  .monster-card__confirm{font-size:13.5px}
+  .monster-card__confirm-yes,.monster-card__confirm-no{font-size:14px;min-height:44px;flex:1 1 auto;justify-content:center}
+}

@@ -3,6 +3,7 @@
 import {useState} from 'react';
 import {ScrollText} from 'lucide-react';
 import {availableXP,day,domains,type Action,type Game,type JournalEntry} from '@/lib/game';
+import {departedMonsters,monsterMeta} from '@/lib/monsters';
 import './records-page.css';
 
 type Act=(action:Action)=>Promise<boolean>;
@@ -23,6 +24,13 @@ function dayLabel(date:string,today:string){
  return date;
 }
 function domainMeta(id:string|undefined){return domains.find(d=>d.id===id)??null;}
+// 走掉的怪兽用年月日、不用「今天」：它是往回看的东西，追着今天的日期反而怪。
+const dateFmt=new Intl.DateTimeFormat('zh-CN',{timeZone:'Asia/Shanghai',year:'numeric',month:'numeric',day:'numeric'});
+function dateLabel(at:string|undefined){
+ if(typeof at!=='string'||!at)return '某天';
+ const d=new Date(at);
+ return Number.isNaN(d.getTime())?'某天':dateFmt.format(d);
+}
 const STATUS_LABEL:Record<JournalEntry['status'],string>={pending:'待收下',kept:'只留着',claimed:'已转行动'};
 
 /** 把记录按日期分组，日期从新到旧；组内按时刻从新到旧。 */
@@ -58,8 +66,11 @@ export function RecordsPage({state,act,busy,onTalk}:RecordsPageProps){
  // 领域分布：没归领域的记录单独一档，不硬塞进某个领域假装有归类。
  const byDomain=domains.map(d=>({id:d.id,name:d.name,color:d.color,count:entries.filter(e=>e.domain===d.id).length}));
  const unFiled=entries.filter(e=>!e.domain).length;
+ // 走掉的按「走掉的时间」倒序：最近放下的排最前。
+ const departed=[...departedMonsters(state)].sort((a,b)=>String(b.resolvedAt||'').localeCompare(String(a.resolvedAt||'')));
 
- if(!entries.length)return <section className="records-page">
+ // 没有记录、也没有走掉的怪兽时才是真空页：只有怪兽走过、没留下日记的人，也该看得见那些碑。
+ if(!entries.length&&!departed.length)return <section className="records-page">
   <div className="records-empty">
    <ScrollText size={34} aria-hidden="true"/>
    <h2>这里还是空的</h2>
@@ -93,6 +104,30 @@ export function RecordsPage({state,act,busy,onTalk}:RecordsPageProps){
   </section>
 
   {state.settings.journalTrimmed&&<p className="records-note" role="status">记录已超过 500 条上限，最早的一部分已被删除，<strong>无法恢复</strong>——导出的文件只包含当前存档，也没有导入功能。</p>}
+
+  {/* 走掉的怪兽。放在记录流之前、统计之后：它属于「这一路留下了什么」，
+     不属于某一天的流水账——把它塞进按天分组里，会假装它是一条日记。 */}
+  {departed.length>0&&<section className="records-departed" aria-labelledby="records-departed-title">
+   <div className="records-day__head">
+    <h2 id="records-departed-title">走过的</h2>
+    <span className="records-day__count">{departed.length} 只</span>
+   </div>
+   <ul className="records-departed__list">
+    {departed.map(m=>{
+     const meta=monsterMeta(m);
+     return <li key={m.id} className="records-epitaph" data-kind={meta.id}>
+      <div className="records-epitaph__head">
+       <span className="records-entry__dot" style={{background:meta.color}} aria-hidden="true"/>
+       <strong className="records-epitaph__name">{m.name}</strong>
+       <span className="records-epitaph__kind">{meta.label}</span>
+      </div>
+      {/* 碑文是它出现时你的原话，不是最后一击。走掉的时候人想看的是「它当初是什么」。 */}
+      <p className="records-epitaph__text">{m.epitaph||m.sourceText||'它就这么淡下去了。'}</p>
+      <span className="records-epitaph__meta">{dateLabel(m.createdAt)} 出现 · {dateLabel(m.resolvedAt)} 走掉 · 挨过 {(m.hits||[]).length} 次</span>
+     </li>;
+    })}
+   </ul>
+  </section>}
 
   {/* 主体：按天往下排。这一天说了什么，全在这儿。 */}
   <div className="records-stream">

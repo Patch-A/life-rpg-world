@@ -106,6 +106,43 @@
 .chat-room__quick-reply:hover:not(:disabled){border-color:#c6a6ed;background:#322a4c}
 .chat-room__quick-reply:disabled{opacity:.55;cursor:not-allowed}
 
+/* 怪兽提议。刻意做得比「今天的记录」更轻：它是一次询问，不是一块面板。
+   左边一条细线是它的辨识标记——不用第二套配色，也不抢对话流的注意力。 */
+.chat-room__monster{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding:10px 12px 10px 14px;
+  border:1px solid #a98ec53d;
+  border-left:3px solid #7c8ba8;
+  border-radius:12px;
+  background:#1b192b;
+}
+.chat-room__monster-copy{display:flex;flex-direction:column;gap:4px;min-width:0}
+.chat-room__monster-kicker{color:#d9cdf2;font-size:12.5px;font-weight:600}
+.chat-room__monster-name{
+  height:36px;min-height:36px;padding:0 10px;
+  border:1px solid #a98ec54d;border-radius:9px;
+  background:#191727;color:#eee6ff;font-size:16px;
+  /* 输入框在 iOS 上小于 16px 会触发自动放大，这里不能跟正文一样缩到 13px。 */
+  max-width:100%;
+}
+.chat-room__monster-name:focus-visible{outline:2px solid #c6a6ed;outline-offset:1px}
+.chat-room__monster-name:disabled{opacity:.7}
+.chat-room__monster-note{margin:0;color:#b7a9d9;font-size:11.5px;line-height:1.6}
+.chat-room__monster-meta{color:#8f86ab;font-size:11px}
+.chat-room__monster-actions{display:flex;flex-wrap:wrap;gap:8px}
+.chat-room__monster-yes,.chat-room__monster-no{
+  min-height:36px;padding:0 14px;border-radius:11px;
+  font-size:12.5px;cursor:pointer;
+}
+.chat-room__monster-yes{color:#f1e8ff;background:#4a3770;border:1px solid #7c5cc4}
+.chat-room__monster-yes:hover:not(:disabled){background:#5c4589;border-color:#a98ee0}
+.chat-room__monster-no{color:#a99cc0;background:transparent;border:1px solid #a98ec53d}
+.chat-room__monster-no:hover:not(:disabled){color:#d9cdf2;border-color:#c6a6ed}
+.chat-room__monster-yes:disabled,.chat-room__monster-no:disabled{opacity:.5;cursor:not-allowed}
+.chat-room__monster-yes:focus-visible,.chat-room__monster-no:focus-visible{outline:2px solid #d6baff;outline-offset:2px}
+
 .chat-room__consent{
   display:flex;
   flex-direction:column;
@@ -457,4 +494,9 @@
   .chat-room__export{font-size:14px;min-height:44px}
   .chat-room__edit-open{font-size:14px;min-height:40px}
   .chat-room__edit-save,.chat-room__edit-cancel{font-size:14px;min-height:44px}
+  .chat-room__monster{padding:10px 12px}
+  .chat-room__monster-kicker{font-size:14px}
+  .chat-room__monster-note{font-size:13px}
+  .chat-room__monster-meta{font-size:12.5px}
+  .chat-room__monster-yes,.chat-room__monster-no{font-size:14px;min-height:44px;flex:1 1 auto;justify-content:center;display:inline-flex;align-items:center}
 }

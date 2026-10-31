@@ -17,7 +17,12 @@ const LIMIT=10000;
 const bytes=(v:unknown)=>new TextEncoder().encode(JSON.stringify(v)).length;
 const cut=(v:unknown,max:number)=>typeof v==='string'?v.slice(0,max):'';
 
-export type ChatTurn={type:'chat-turn';clientId:string;userText:string;reply:string;posture:string;askSwitch:boolean;records:ChatResult['records'];memoryCandidates:ChatResult['memoryCandidates']};
+export type ChatTurn={type:'chat-turn';clientId:string;userText:string;reply:string;posture:string;askSwitch:boolean;records:ChatResult['records'];memoryCandidates:ChatResult['memoryCandidates'];
+ // 怪兽提议和心情信号。两者都缺省等于「什么都不发生」，不影响旧行为。
+ monster?:ChatResult['monster'];mood?:ChatResult['mood']};
+// 一条怪兽提议体积很小（名字 20 + 说明 200，中文约 700 字节），但它决定用户能不能看到
+// 「要不要把它放进星球」那一行。所以压缩链上放在很后面才砍。
+const dropMonster=(m:ChatTurn['monster'])=>m?{...m,note:(m.note||'').slice(0,80)}:null;
 
 // 按顺序逐个收紧，直到整个请求体（含 revision 包装）落进上限。
 // 超出长度时返回 null —— 那时该由调用方把话截短，而不是写进一条静默丢内容的记录。
@@ -31,12 +36,17 @@ export function fitChatTurn(action:ChatTurn,{limit=LIMIT}:{limit?:number}={}):Ch
   // 先砍记录的冗余：tag 是最装饰性的部分，正文和摘要各留一半仍能认出来。
   ()=>a={...a,records:a.records.map(r=>({...r,text:cut(r.text,200),summary:cut(r.summary,60),tags:(r.tags||[]).slice(0,4)}))},
   ()=>a={...a,memoryCandidates:a.memoryCandidates.slice(0,2)},
+  // 怪兽的说明先压短——名字和类别保住，界面还能显示「要不要把它放进星球」。
+  ()=>a={...a,monster:dropMonster(a.monster)},
   // 回复的结尾是用户真正在读的东西，排在结构化数据之后才动。
   ()=>a={...a,reply:a.reply.slice(0,1500)},
   ()=>a={...a,memoryCandidates:[]},
   ()=>a={...a,reply:a.reply.slice(0,900)},
   ()=>a={...a,records:a.records.slice(0,2)},
   ()=>a={...a,records:a.records.slice(0,1)},
+  // 到这一步怪兽提议整条丢掉：那一轮照样存得上，只是没有「放进去」这一行。
+  // 丢一个提议比丢半段回复轻——前者用户重新说一次还会有，后者是已经说出口的话。
+  ()=>a={...a,monster:null},
   ()=>a={...a,records:[]},
   ()=>a={...a,reply:a.reply.slice(0,400)},
  ];

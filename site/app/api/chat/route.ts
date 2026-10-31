@@ -9,6 +9,7 @@ import { resolveProvider } from '@/lib/ai/provider';
 import { sanitizeChatResult,type ChatResult } from '@/lib/ai/chat-contract';
 import { buildChatContext } from '@/lib/chat-context';
 import { boundedBody,noStore,RequestError } from '@/lib/request-guard';
+import { canSummonMonster } from '@/lib/monsters';
 export const dynamic='force-dynamic';
 // prevPosture 仍保留在契约里以兼容前端，但已不采信：服务端从存档推算。
 const input=z.object({requestId:z.string().uuid(),userText:z.string().trim().min(1).max(1000),prevPosture:z.enum(['companion','counselor']),switchConsent:z.boolean(),consent:z.literal(true),adult:z.literal(true)});
@@ -42,7 +43,11 @@ export async function POST(req:Request){
  const sanitized=sanitizeChatResult(generated,a.userText,prevPosture,switchConsent);
  // askSwitch=false means we never asked; drop any stale "switch" button the model volunteered.
  const reply:ChatResult=sanitized.askSwitch?sanitized:{...sanitized,quickReplies:sanitized.quickReplies.filter(q=>q.kind!=='accept-switch')};
- const run:ChatRun={id:a.requestId,reply,createdAt};
+ // 怪兽提议只在「还放得下」时才交给前端。上限 3 只是产品规则，不能让用户看到
+ // 一个点了必然失败的按钮——所以在这里拦，而不是等 reducer 抛错。
+ // 心情信号没有活跃怪兽时直接丢掉：它只为怪兽服务，不进任何统计（见 spec 1.4）。
+ const guarded:ChatResult=canSummonMonster(state)?reply:{...reply,monster:null};
+ const run:ChatRun={id:a.requestId,reply:guarded,createdAt};
  await db.prepare("UPDATE agent_runs SET status='complete',result=? WHERE id=? AND user_id=?").bind(JSON.stringify(run),a.requestId,uid).run();
  // Expired rows are inaccessible; bounded lazy cleanup avoids unbounded maintenance writes.
  // 清理是尽力而为：它失败不能让已经完整保存的回复变成 failed。

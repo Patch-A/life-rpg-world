@@ -110,6 +110,12 @@
   .app-shell.view-today .assistant-scene__touch{inset:0 60% 0 0;border-radius:18px 0 0 18px}
   /* 点角色本身就是重读；右下角那颗按钮在 80px 的条里会压到文字。 */
   .app-shell.view-today .assistant-scene__replay{display:none}
+  /* 首页那团影子贴在条的最右端，不占高度、不吃宽度：80px 的条里没有第二个位置给它。
+     高度写死而不是 top+bottom：条的定位上下文不是这里，top/bottom 一起给会算出 0 高。 */
+  .app-shell.view-today .assistant-scene__shade{
+    right:8px;bottom:2px;left:auto;top:auto;
+    width:52px;height:52px;aspect-ratio:auto;
+  }
 
   /* 对话流撑满剩余高度，是这一屏真正的主体。 */
   .app-shell.view-today .chat-room__stream{flex:1;min-height:0;max-height:none}
