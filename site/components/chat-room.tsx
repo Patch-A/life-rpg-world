@@ -92,6 +92,8 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
   const [consentGranted,setConsentGranted]=useState(false);
   // 删除确认态：记住哪一条正在确认；点别的记录的删除会自然把上一条复位。
   const [confirmDelete,setConfirmDelete]=useState<string|null>(null);
+  // 手机上「今天的记录」默认收起，只占一行；桌面版不看这个状态，列表始终展开。
+  const [showRecords,setShowRecords]=useState(false);
   const flight=useRef(false);
   // 切咨询师的同意只对紧跟的那一次请求有效，发送时立刻清零。
   const consentOnce=useRef(false);
@@ -241,15 +243,18 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
       </button>
     </form>
 
-    <section className="chat-room__records" aria-labelledby="chat-room-records-title">
+    {showRecords&&todayRecords.length>0&&<button type="button" className="chat-room__records-backdrop" aria-label="收起今天的记录" onClick={()=>setShowRecords(false)}/>}
+    <section className={`chat-room__records${showRecords?' is-open':''}${todayRecords.length===0?' is-empty':''}`} aria-labelledby="chat-room-records-title">
       <div className="chat-room__records-head">
         <h3 id="chat-room-records-title">今天的记录</h3>
-        <button type="button" className="chat-room__export" onClick={()=>exportJournal(state,today)}><Download size={15} aria-hidden="true"/>导出今天的记录</button>
+        <span className="chat-room__record-count" aria-label={`${todayRecords.length} 条`}>{todayRecords.length}</span>
+        <button type="button" className="chat-room__records-toggle" aria-expanded={showRecords} aria-controls="chat-room-record-list" onClick={()=>setShowRecords(v=>!v)}>{showRecords?'收起':'展开'}</button>
+        <button type="button" className="chat-room__export" aria-label="导出今天的记录" onClick={()=>exportJournal(state,today)}><Download size={15} aria-hidden="true"/><span className="chat-room__export-label">导出今天的记录</span></button>
       </div>
       {saveWarning&&<p className="chat-room__warning" role="alert">这次的记录没存上。原文已放回输入框：直接再发会用同一条回复重试，改了字就会重新问一次。</p>}
       {todayRecords.length===0
-        ? <p className="chat-room__empty">今天还没有记录。</p>
-        : <ul className="chat-room__record-list">
+        ? <p className="chat-room__empty" id="chat-room-record-list">今天还没有记录。</p>
+        : <ul className="chat-room__record-list" id="chat-room-record-list">
           {todayRecords.map(entry=><li key={entry.id}><RecordCard entry={entry} state={state} busy={busy} sending={sending} act={act} confirming={confirmDelete===entry.id} onAskDelete={()=>setConfirmDelete(entry.id)} onCancelDelete={()=>setConfirmDelete(null)}/></li>)}
         </ul>}
     </section>

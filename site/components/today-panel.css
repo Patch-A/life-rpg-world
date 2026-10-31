@@ -34,10 +34,16 @@
    不认 dvh，整条 height 声明会被丢弃 → 高度约束消失 → 整页变成一张长图，
    对话流内部滚不动，输入框被顶到 8000px 之外。实测复现过。
    改用 ViewportVars 已经写好的 --vvh（visualViewport 高度，Chrome 61+ 支持），
-   读不到时退回 100vh。--vvh 还有个好处：软键盘弹起时会跟着缩，输入框不会被挡。 */
+   读不到时退回 100vh。--vvh 还有个好处：软键盘弹起时会跟着缩，输入框不会被挡。
+
+   比例（荣耀 Magic 7 Pro 实测：浏览器可见高度 694px，不是 801）：
+   改之前 场景 150 / 对话流 40 / 记录 108 —— 对话流只占全屏 6%，
+   一条消息都看不全。现在把「场景 + 问候语」合成一条横向陪伴条，
+   「今天的记录」收成一行，对话流拿到一半屏幕。 */
 @media(max-width:760px){
   .app-shell.view-today{height:var(--vvh,100vh);min-height:0;overflow:hidden}
   .app-shell.view-today .workspace{
+    position:relative;
     display:flex;flex-direction:column;min-height:0;overflow:hidden;
     height:calc(var(--vvh,100vh) - 73px);
     padding:12px 16px calc(78px + env(safe-area-inset-bottom));
@@ -47,11 +53,24 @@
   .app-shell.view-today .today-events-bar,
   .app-shell.view-today .feedback-panel,
   .app-shell.view-today .privacy-note{display:none}
-  /* 问候语保留，但收成一行：名字还在，标语和留白让给对话。 */
-  .app-shell.view-today .greeting{margin-bottom:10px;align-items:center;gap:8px}
+
+  /* 问候语不再单独占一行：定位到人物条里，和头像并排。
+     它脱离文档流后会盖在场景上方，所以给 .workspace 加 position:relative。 */
+  .app-shell.view-today .greeting{
+    position:absolute;top:12px;left:16px;right:16px;height:80px;
+    margin:0;padding-left:84px;align-items:center;gap:6px;z-index:4;
+    /* 整条都要能点到下面角色（点一下重读），所以文字层不吃点击。 */
+    pointer-events:none;
+  }
+  .app-shell.view-today .greeting>div:first-child{min-width:0}
   .app-shell.view-today .greeting .eyebrow{display:none}
-  .app-shell.view-today .greeting h1{font-size:1.05rem;line-height:1.3}
-  .app-shell.view-today .save-status{margin-top:0;font-size:.75rem;flex-shrink:0}
+  .app-shell.view-today .greeting h1{
+    font-size:1rem;line-height:1.35;font-weight:600;
+    /* 名字和问句太长时截两行，不撑破陪伴条。 */
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
+  }
+  .app-shell.view-today .save-status{margin-top:0;font-size:.7rem;flex-shrink:0;pointer-events:auto}
+
   .app-shell.view-today .today-layout{
     flex:1;min-height:0;display:flex;flex-direction:column;gap:10px;margin:0;
   }
@@ -67,15 +86,59 @@
   .app-shell.view-today .today-assistant__scene{flex:0 0 auto}
   .app-shell.view-today .today-assistant__chat{flex:1;min-height:0}
   .app-shell.view-today .today-assistant__chat>.chat-room{flex:1;min-height:0}
-  .app-shell.view-today .chat-room{padding:14px}
-  /* 对话流撑满剩余高度。上面那句「我记下了这些」和台词框不再复读同一句话。 */
+  .app-shell.view-today .chat-room{padding:14px;gap:10px}
+
+  /* ── 人物条：90px 高的一条，角色缩成左边的一个小头像，右边留给问候语 ── */
+  .app-shell.view-today .assistant-scene{
+    height:80px;border-radius:18px;
+    /* 光晕跟着头像走，别在中路再开一圈。 */
+    background:radial-gradient(ellipse at 13% 50%,var(--scene-halo-wash),transparent 55%),linear-gradient(150deg,#201e36,#11182a);
+  }
+  .app-shell.view-today .assistant-scene__sky{display:none}
+  /* 气泡就是聊天流里最后那条，屏幕上不再复读一遍。 */
+  .app-shell.view-today .assistant-scene__bubble{display:none}
+  .app-shell.view-today .assistant-scene__halo{
+    top:50%;left:42px;width:52px;height:52px;
+    box-shadow:0 0 0 10px var(--scene-halo-wash),0 0 26px var(--scene-halo-core);
+  }
+  .app-shell.view-today .assistant-scene__actor{top:4px;bottom:4px;left:14px;right:auto;width:56px}
+  .app-shell.view-today .assistant-scene__pedestal{bottom:8px;left:42px;width:52px;height:9px}
+  .app-shell.view-today .assistant-scene__touch{inset:0 60% 0 0;border-radius:18px 0 0 18px}
+  /* 点角色本身就是重读；右下角那颗按钮在 80px 的条里会压到文字。 */
+  .app-shell.view-today .assistant-scene__replay{display:none}
+
+  /* 对话流撑满剩余高度，是这一屏真正的主体。 */
   .app-shell.view-today .chat-room__stream{flex:1;min-height:0;max-height:none}
 
-  /* 人物区从 212px 压成一条存在感：角色还在，但不吃掉半屏。 */
-  .app-shell.view-today .assistant-scene{height:150px}
-  .app-shell.view-today .assistant-scene__bubble{display:none}
-  .app-shell.view-today .assistant-scene__actor{top:6px;right:24%;bottom:8px;left:24%}
-  .app-shell.view-today .assistant-scene__halo{top:50%;width:118px;height:118px}
-  .app-shell.view-today .assistant-scene__pedestal{bottom:4px;width:104px;height:14px}
-  .app-shell.view-today .assistant-scene__touch{inset:6px 18% 6px}
+  /* 「今天的记录」：空的时候整块不出现在首页（聊天流里已经说了同一句话）；
+     有记录时收成一行条数，点「展开」才占地方。
+     展开的列表用浮层向上长，不挤对话流——否则三条记录就能把聊天压到 30px，
+     等于又回到「看不到信息长什么样」。 */
+  .app-shell.view-today .chat-room__records{position:relative;padding-top:10px}
+  .app-shell.view-today .chat-room__records.is-empty{display:none}
+  .app-shell.view-today .chat-room__records-head{flex-wrap:nowrap;gap:6px}
+  .app-shell.view-today .chat-room__records-head h3{font-size:.82rem;font-weight:600;white-space:nowrap}
+  .app-shell.view-today .chat-room__records-toggle{
+    display:inline-flex;align-items:center;justify-content:center;
+    min-height:30px;padding:0 10px;border:1px solid #a98ec54d;border-radius:10px;
+    background:transparent;color:#c9bce6;font-size:12px;
+  }
+  .app-shell.view-today .chat-room__export{min-height:30px;padding:0 9px;border-radius:10px}
+  /* 条上只留图标，文字留给读屏。 */
+  .app-shell.view-today .chat-room__export-label{display:none}
+  .app-shell.view-today .chat-room__records:not(.is-open) .chat-room__record-list{display:none}
+  .app-shell.view-today .chat-room__records:not(.is-open) .chat-room__warning{display:none}
+  .app-shell.view-today .chat-room__records.is-open .chat-room__record-list{
+    position:absolute;bottom:100%;left:0;right:0;z-index:5;
+    max-height:min(46vh,320px);overflow-y:auto;overscroll-behavior:contain;
+    margin:0 0 8px;padding:10px;
+    border:1px solid #a98ec54d;border-radius:16px;
+    background:#191629;box-shadow:0 18px 40px #05070fcc;
+  }
+  /* 背板挂在对话卡片上，浮层和记录条都在同一层，所以背板只压住对话卡片范围。 */
+  .app-shell.view-today .chat-room{position:relative}
+  .app-shell.view-today .chat-room__records-backdrop{
+    display:block;position:absolute;inset:0;z-index:4;
+    border:0;padding:0;background:#0a0e1a99;border-radius:24px;
+  }
 }

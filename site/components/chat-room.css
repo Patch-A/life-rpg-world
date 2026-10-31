@@ -187,6 +187,27 @@
   align-items:center;
   justify-content:space-between;
 }
+
+/* 条数做成小胶囊：电话上它就是「今天的记录」这一行的右端信息。 */
+.chat-room__record-count{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-width:20px;
+  height:20px;
+  margin-right:auto;
+  padding:0 6px;
+  border-radius:999px;
+  background:#a98ec52e;
+  color:#c9bce6;
+  font-size:11.5px;
+  line-height:1;
+}
+
+/* 桌面版列表始终展开，不需要这个按钮；只有手机断点才会显示。 */
+.chat-room__records-toggle{display:none}
+/* 手机展开记录时的背板：点一下就收起，否则浮层盖住输入框，点哪儿都没反应。 */
+.chat-room__records-backdrop{display:none}
 .chat-room__records-head h3{margin:0;font-size:15px}
 .chat-room__export{
   display:inline-flex;
