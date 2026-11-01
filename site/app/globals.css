@@ -34,7 +34,9 @@ textarea,select{width:100%;font:inherit;color:#edf0ff;background:#0b1023;border:
    第一个菜单项落在 1.7 屏之外（y=1426 / 视口 844），用户看到一屏人物就以为「点了没反应」。
    压矮人物并改成横向卡片后，第一个菜单项回到 y=542，首屏就能点到。 */
 @media(max-width:760px){
-  .profile-character .rpg-character2d__scene{height:170px}
+  /* 170 → 186：人物图的顶部内边距从 34 抬到 50，是为了不再被「星光营地」徽章盖住头。
+     补回 16px，人物实际高度不变（186-50-14 = 122，和原来 170-34-14 一样）。 */
+  .profile-character .rpg-character2d__scene{height:186px}
   .profile-character{margin:12px 0}
   /* 手机上把人物面板改成横向卡片：左边人物、右边等级与进度。
      竖排时人物一个人就占掉整屏，菜单要滑一屏半才看得到；横排后第一个菜单项回到第一屏。 */

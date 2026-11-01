@@ -12,11 +12,16 @@
 @media(max-width:760px){.rpg-character2d__badge{font-size:14px;padding:5px 9px}}
 .rpg-character2d__halo{position:absolute;top:42%;left:50%;width:230px;height:230px;border:1px solid #b29bd333;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 30px #b29bd307,0 0 0 31px #b29bd314;pointer-events:none}
 .rpg-character2d__pedestal{position:absolute;bottom:10px;left:50%;width:240px;height:32px;transform:translateX(-50%);border:1px solid #b4a0d638;border-radius:50%;background:#ac89d512;box-shadow:0 0 26px #ae8bcc15}
-.rpg-character2d__actor{position:absolute;z-index:2;inset:34px 16px 14px;transform-origin:50% 7%;transition:transform .45s ease;pointer-events:none}
+/* 顶部 50px 是给上面那枚「星光营地」徽章让位。
+   徽章 top:14 + 高 34 = 底边 48，而这里原来写 34 —— 两者的横向范围在窄容器里完全重合，
+   于是徽章直接盖在人物头上，而且徽章 z-index 3 压过人物 2，头被裁掉一截。
+   真机上（「我的」页横向卡片，场景只有 120×170）看得很明显。
+   抬到 50 之后，各处的场景高度要同步补回来，否则人物会被压小——见 globals.css 里那处。 */
+.rpg-character2d__actor{position:absolute;z-index:2;inset:50px 16px 14px;transform-origin:50% 7%;transition:transform .45s ease;pointer-events:none}
 .rpg-character2d__actor .rpg-art>img{animation:rpg-portrait-idle 6s ease-in-out infinite;transform-origin:50% 90%}
 .rpg-character2d--close .rpg-character2d__actor{transform:scale(1.85)}
 .rpg-character2d--close .rpg-art__status{transform:scale(.54);transform-origin:50% 10%}
-.rpg-character2d__touch{position:absolute;inset:44px 12% 12px;border:0;background:transparent;border-radius:20px;cursor:pointer;z-index:1;-webkit-tap-highlight-color:transparent}
+.rpg-character2d__touch{position:absolute;inset:56px 12% 12px;border:0;background:transparent;border-radius:20px;cursor:pointer;z-index:1;-webkit-tap-highlight-color:transparent}
 .rpg-character2d__touch:focus-visible{outline:2px solid #d6baff;outline-offset:-4px}
 .rpg-character2d__speech{position:absolute;z-index:3;bottom:20px;left:16px;right:16px;width:fit-content;max-width:calc(100% - 32px);margin:auto;background:#201c37f2;border:1px solid #c8afe055;border-radius:16px;padding:12px 15px;text-align:center;font-size:13px;line-height:1.7;pointer-events:none}
 .rpg-character2d__controls{position:relative;display:flex;justify-content:center;flex-wrap:wrap;gap:8px;padding:8px 12px 15px}
