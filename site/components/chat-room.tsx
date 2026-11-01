@@ -1,7 +1,7 @@
 ﻿'use client';
 
-import {Fragment,useEffect,useRef,useState,type FormEvent} from 'react';
-import {Download,Send,Trash2,Undo2} from 'lucide-react';
+import {Fragment,useEffect,useRef,useState,useSyncExternalStore,type FormEvent} from 'react';
+import {Download,Mic,Send,Trash2,Undo2} from 'lucide-react';
 import {toast} from 'sonner';
 import {ApiError,readJSON,requestError} from '@/lib/api-client';
 import {type Action,type Game,type JournalEntry,availableXP,day,domains} from '@/lib/game';
@@ -11,6 +11,7 @@ import {exportJournal} from '@/lib/export-journal';
 import {newId} from '@/lib/ids';
 import {timeoutSignal} from '@/lib/abort';
 import {fitChatTurn} from '@/lib/chat-payload';
+import {VOICE_REASON,SERVER_VOICE_STATUS,startListening,subscribeVoice,voiceStatus,type VoiceSession} from '@/lib/voice';
 import type {ChatResult} from '@/lib/ai/chat-contract';
 import './chat-room.css';
 
@@ -81,9 +82,11 @@ export interface ChatRoomProps{
   onPosture:(posture:Posture)=>void;
   /** 只在落库成功后通知，供上层朗读；上层不要在这里换个说法。 */
   onLine:(line:string)=>void;
+  /** 麦克风是不是正开着。树人靠这个切到 listening，别自己再猜状态。 */
+  onListening?:(on:boolean)=>void;
 }
 
-export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
+export function ChatRoom({state,act,busy,onPosture,onLine,onListening}:ChatRoomProps){
   const [draft,setDraft]=useState('');
   const [sending,setSending]=useState(false);
   const [quickReplies,setQuickReplies]=useState<ChatResult['quickReplies']>([]);
@@ -105,6 +108,14 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
   const unsaved=useRef<{runId:string;userText:string;reply:ChatResult}|null>(null);
   const inputRef=useRef<HTMLInputElement|null>(null);
   const streamRef=useRef<HTMLDivElement|null>(null);
+  // 语音输入：按住说话 → 文字填进输入框 → **用户自己按发送**。任何情况下都不自动发。
+  // 能力判断走 useSyncExternalStore：服务端没有 window，用 server 快照保住 hydration 一致。
+  const voice=useSyncExternalStore(subscribeVoice,voiceStatus,()=>SERVER_VOICE_STATUS);
+  const [micOn,setMicOn]=useState(false);
+  const [voiceNote,setVoiceNote]=useState('');
+  const session=useRef<VoiceSession|null>(null);
+  // 开录那一刻输入框里已有的字。识别结果接在它后面，不覆盖用户打了一半的话。
+  const spokenBase=useRef('');
   const today=day();
   const todayRecords=[...state.journal].filter(e=>e.date===today).sort((a,b)=>String(a.at||'').localeCompare(String(b.at||'')));
   // 同意只问一次：存档里记过、或这次会话里已经同意过，就不再显示。
@@ -112,6 +123,30 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
   const canSend=consentDone||(adultOk&&consentOk);
 
   useEffect(()=>{const el=streamRef.current;if(el)el.scrollTop=el.scrollHeight;},[state.chat.length]);
+
+  useEffect(()=>{
+    // 离开页面时别让麦克风还开着。cancel 不回调，所以这里不用复位 UI。
+    return ()=>session.current?.cancel();
+  },[]);
+
+  function stopVoice(){
+    session.current?.stop();
+  }
+
+  function startVoice(){
+    if(session.current)return;
+    if(!voice.ok){setVoiceNote(VOICE_REASON[voice.reason]);return;}
+    spokenBase.current=draft;
+    setVoiceNote('');
+    const s=startListening({
+      // 还在变的半句话也先填进去：手机上看得到自己说到哪了，比等最后一次性跳出来踏实。
+      onTranscript:text=>setDraft(spokenBase.current+text),
+      onError:message=>{if(message)setVoiceNote(message);},
+      onEnd:()=>{session.current=null;setMicOn(false);onListening?.(false);},
+    });
+    if(!s){setVoiceNote('语音没能启动，先用打字吧。');return;}
+    session.current=s;setMicOn(true);onListening?.(true);
+  }
 
   async function send(e:FormEvent<HTMLFormElement>){
     e.preventDefault();
@@ -281,10 +316,43 @@ export function ChatRoom({state,act,busy,onPosture,onLine}:ChatRoomProps){
         enterKeyHint="send"
         autoComplete="off"
       />
+      {/*
+        按住说话。用 pointer 事件而不是 click：click 分不出「按住」和「点一下」，
+        而按住说话必须知道什么时候松手。
+        不支持语音时按钮**照样显示**、按下去给一句原因——在用户那台手机上，
+        「按钮是灰的」本身就是我们要从真机拿到的一条信息，静默隐藏反而让人以为是没做。
+      */}
+      <button
+        type="button"
+        className={`chat-room__mic${micOn?' is-listening':''}${voice.ok?'':' is-unavailable'}`}
+        disabled={sending||busy}
+        aria-label={voice.ok?'按住说话':'语音输入不可用，按一下看原因'}
+        aria-pressed={micOn}
+        aria-describedby={voiceNote?'chat-room-voice-note':undefined}
+        onPointerDown={e=>{
+          // 安卓长按会弹系统菜单，按住说话得把它压掉，否则一按就跳上下文菜单。
+          e.preventDefault();
+          e.currentTarget.setPointerCapture?.(e.pointerId);
+          startVoice();
+        }}
+        onPointerUp={stopVoice}
+        onPointerCancel={stopVoice}
+        onContextMenu={e=>e.preventDefault()}
+        onKeyDown={e=>{
+          if((e.key===' '||e.key==='Enter')&&!e.repeat){e.preventDefault();startVoice();}
+        }}
+        onKeyUp={e=>{
+          if(e.key===' '||e.key==='Enter'){e.preventDefault();stopVoice();}
+        }}
+      >
+        <Mic size={18} aria-hidden="true"/>
+      </button>
       <button type="submit" className="chat-room__send" disabled={sending||busy||!draft.trim()||!canSend}>
         {sending?'正在想…':<><Send size={16} aria-hidden="true"/>发送</>}
       </button>
     </form>
+
+    {voiceNote&&<p className="chat-room__voice-note" id="chat-room-voice-note" role="status">{voiceNote}</p>}
 
     {showRecords&&todayRecords.length>0&&<button type="button" className="chat-room__records-backdrop" aria-label="收起今天的记录" onClick={()=>setShowRecords(false)}/>}
     <section className={`chat-room__records${showRecords?' is-open':''}${todayRecords.length===0?' is-empty':''}`} aria-labelledby="chat-room-records-title">

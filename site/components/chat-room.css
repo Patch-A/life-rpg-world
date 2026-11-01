@@ -213,6 +213,57 @@
 .chat-room__send:focus-visible{outline:2px solid #d6baff;outline-offset:2px}
 .chat-room__send:disabled{opacity:.5;cursor:not-allowed}
 
+/* 按住说话。44px 是最小可点区域，别为了好看缩到 40 以下——在手机上一缩就按空。 */
+.chat-room__mic{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  flex:none;
+  width:44px;
+  min-height:44px;
+  padding:0;
+  border:1px solid #a98ec54d;
+  border-radius:12px;
+  background:#241f3a;
+  color:#e8dcf8;
+  cursor:pointer;
+  /* 长按时浏览器会接管手势（滚动、拖拽），这里明确交给我们自己处理。 */
+  touch-action:none;
+  -webkit-touch-callout:none;
+  -webkit-user-select:none;
+  user-select:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.chat-room__mic:hover:not(:disabled){background:#322a4c;border-color:#c6a6ed}
+.chat-room__mic:focus-visible{outline:2px solid #d6baff;outline-offset:2px}
+.chat-room__mic:disabled{opacity:.5;cursor:not-allowed}
+/* 环境不支持时也让它能按——按下去会给原因。视觉上压暗，但不做成「坏掉的按钮」。 */
+.chat-room__mic.is-unavailable{color:#8f83ad;border-style:dashed}
+/* 正在听：用边框和图标颜色表达，不用发光晕（深色背景上发晕像故障）。 */
+.chat-room__mic.is-listening{
+  background:#3a2340;
+  border-color:#e88b8b;
+  color:#ffc9c9;
+  animation:chat-mic-listen 1.4s ease-in-out infinite;
+}
+@keyframes chat-mic-listen{
+  0%,100%{box-shadow:0 0 0 0 #e88b8b00}
+  50%{box-shadow:0 0 0 3px #e88b8b44}
+}
+@media (prefers-reduced-motion:reduce){
+  .chat-room__mic.is-listening{animation:none;box-shadow:0 0 0 2px #e88b8b44}
+}
+.chat-room__voice-note{
+  margin:0;
+  padding:7px 10px;
+  border-radius:10px;
+  background:#241f3a;
+  border:1px solid #a98ec53d;
+  color:#d9cdf2;
+  font-size:12px;
+  line-height:1.55;
+}
+
 .chat-room__records{
   padding-top:12px;
   border-top:1px solid #a98ec52e;
