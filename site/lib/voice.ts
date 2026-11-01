@@ -78,6 +78,26 @@ export function subscribeVoice(): () => void {
   return () => {};
 }
 
+// ── 朗读（TTS）─────────────────────────────────────────────────────────
+// 和语音输入是两件事：识别要联网、要麦克风权限；朗读只用本机合成引擎。
+// 荣耀那台系统浏览器（百度内核 Chrome/97）**没有 window.speechSynthesis**，
+// 所以「朗读记录官的话」那个开关在它上面是个假开关——默认显示为开，却永远不出声。
+// 能力判断同样是页面级常量，用 useSyncExternalStore 读，避免 useEffect 里 setState。
+let cachedTts: boolean | null = null;
+
+/** 这台浏览器能不能把文字读出声。服务端一律 false，水合后由客户端纠正。 */
+export function ttsStatus(): boolean {
+  if (cachedTts !== null) return cachedTts;
+  if (typeof window === 'undefined') return false;
+  cachedTts = typeof window.speechSynthesis !== 'undefined' && typeof SpeechSynthesisUtterance !== 'undefined';
+  return cachedTts;
+}
+
+/** 同 `subscribeVoice`：朗读能力在页面生命周期里不会变。 */
+export function subscribeTts(): () => void {
+  return () => {};
+}
+
 export interface VoiceSession {
   /** 松手时调：把还没出结果的那段话收尾，会再触发一次 onTranscript(final=true)。 */
   stop(): void;

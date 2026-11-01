@@ -1,8 +1,9 @@
 'use client';
 
-import {useCallback, useEffect, useRef, useState} from 'react';
+import {useCallback, useEffect, useRef, useState, useSyncExternalStore} from 'react';
 import {Volume2} from 'lucide-react';
 import {Treant, type TreantState} from './treant';
+import {subscribeTts, ttsStatus} from '@/lib/voice';
 import './assistant-scene.css';
 
 export type AssistantPosture = 'companion' | 'counselor';
@@ -31,6 +32,9 @@ export interface AssistantSceneProps {
 
 export function AssistantScene({posture, line, speaking, onReplay, thinking = false, listening = false, shade = 0}: AssistantSceneProps) {
   const [reading, setReading] = useState(false);
+  // 这台浏览器能不能把字读出声。不能时整条朗读路径都在，但没有入口——
+  // 否则「重读」是个按了没反应的按钮，点树人也一样（荣耀那台百度内核就是这种）。
+  const ttsOk = useSyncExternalStore(subscribeTts, ttsStatus, () => false);
   const lastRead = useRef('');
   const currentUtterance = useRef<SpeechSynthesisUtterance | null>(null);
   // brief 基线 rate=.95；按裁定：陪伴者更慢（.9），咨询师常规（1）。
@@ -138,12 +142,14 @@ export function AssistantScene({posture, line, speaking, onReplay, thinking = fa
           <ellipse cx="57" cy="47" rx="2.6" ry="3.4" fill="#7c72a0"/>
         </svg>
       </div>}
-      <button type="button" className="assistant-scene__touch" onClick={replay} aria-label="再听记录官说一次"/>
+      {/* 没有朗读能力时这两个入口都不画。按钮还在、按下去却没声音，比不画更糟：
+          用户会以为是加载慢或者自己没点准，而不是「这台浏览器不做这件事」。 */}
+      {ttsOk && <button type="button" className="assistant-scene__touch" onClick={replay} aria-label="再听记录官说一次"/>}
       {/* 气泡常驻，让 role=status 在文本变化前就存在于无障碍树里；没有台词时只做透明处理。 */}
       <div className={`assistant-scene__bubble${line ? '' : ' assistant-scene__bubble--quiet'}`}>
         <p className="assistant-scene__line" role="status">{line}</p>
       </div>
-      <button
+      {ttsOk && <button
         type="button"
         className="assistant-scene__replay"
         onClick={replay}
@@ -152,7 +158,7 @@ export function AssistantScene({posture, line, speaking, onReplay, thinking = fa
       >
         <Volume2 size={16}/>
         <span className="assistant-scene__replay-label">{reading ? '朗读中' : '重读'}</span>
-      </button>
+      </button>}
     </section>
   );
 }
