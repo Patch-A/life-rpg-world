@@ -1,0 +1,102 @@
+{
+  "idle": {
+    "source": "exec-e2e6dc01-f64a-47af-9b73-aca2b6d38cfb.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "bbox_any_alpha": [
+      166,
+      142,
+      858,
+      919
+    ],
+    "margin_px": [
+      166,
+      142,
+      166,
+      105
+    ],
+    "fully_transparent_fraction": 0.7114095687866211
+  },
+  "speaking": {
+    "source": "exec-cfd2e09d-eaeb-4fe3-a7c4-873826990855.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "bbox_any_alpha": [
+      156,
+      149,
+      867,
+      919
+    ],
+    "margin_px": [
+      156,
+      149,
+      157,
+      105
+    ],
+    "fully_transparent_fraction": 0.7074899673461914
+  },
+  "listening": {
+    "source": "exec-c0fb511a-53d6-426a-94cb-a3899f03784f.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "bbox_any_alpha": [
+      165,
+      172,
+      860,
+      919
+    ],
+    "margin_px": [
+      165,
+      172,
+      164,
+      105
+    ],
+    "fully_transparent_fraction": 0.7191953659057617
+  },
+  "thinking": {
+    "source": "exec-5c67bbb8-f392-44fd-8bbd-4a0dfa70ac5e.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "bbox_any_alpha": [
+      194,
+      185,
+      830,
+      919
+    ],
+    "margin_px": [
+      194,
+      185,
+      194,
+      105
+    ],
+    "fully_transparent_fraction": 0.7631282806396484
+  },
+  "still": {
+    "source": "exec-826ab518-6c3e-406a-88af-5e1f0bd37314.png",
+    "size": [
+      1024,
+      1024
+    ],
+    "bbox_any_alpha": [
+      179,
+      227,
+      845,
+      919
+    ],
+    "margin_px": [
+      179,
+      227,
+      179,
+      105
+    ],
+    "fully_transparent_fraction": 0.7481298446655273
+  }
+}

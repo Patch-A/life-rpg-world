@@ -84,6 +84,18 @@ export function AssistantScene({posture, line, speaking, onReplay, thinking = fa
   // 只有一帧，等于没有；而且朗读被关掉时它也会闪一下，等于在骗人。
   const treantState: TreantState = listening ? 'listening' : reading ? 'speaking' : thinking ? 'thinking' : 'idle';
 
+  // 「减少动态效果」时树人也停在静止态：素材自带闭眼，比单纯停掉动画更像「它歇着了」。
+  // 初值取 false，服务端渲染和首帧都按正常态来，避免 hydration 前后不一致。
+  const [reduced, setReduced] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    const read = () => setReduced(mq.matches || document.documentElement.classList.contains('reduced'));
+    read();
+    mq.addEventListener('change', read);
+    return () => mq.removeEventListener('change', read);
+  }, []);
+  const shownState: TreantState = reduced && treantState === 'idle' ? 'still' : treantState;
+
   // data-season 预留季节位：V1 固定 'none'，后续季节变化只改这里的值，样式按属性呼应。
   return (
     <section
@@ -94,9 +106,10 @@ export function AssistantScene({posture, line, speaking, onReplay, thinking = fa
     >
       <div className="assistant-scene__sky" aria-hidden="true"/>
       <div className="assistant-scene__halo" aria-hidden="true"/>
-      <div className="assistant-scene__pedestal" aria-hidden="true"/>
+      {/* 原来的 CSS 椭圆台座已移除：v3 树人素材自带土包，树踩土包、土包再浮在椭圆上，
+          中间空一截，成了两层底座。土包本身就是地面，比椭圆自然。 */}
       <div className="assistant-scene__actor">
-        <Treant state={treantState}/>
+        <Treant state={shownState}/>
       </div>
       {/* 首页那一块几乎看不见的影子。没有名字、没有分数、点不动——
           它只回答「星球上现在有东西在」，不邀请你做任何操作。

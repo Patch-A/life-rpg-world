@@ -101,12 +101,14 @@
   .app-shell.view-today .assistant-scene__sky{display:none}
   /* 气泡就是聊天流里最后那条，屏幕上不再复读一遍。 */
   .app-shell.view-today .assistant-scene__bubble{display:none}
+  /* 光晕跟头像居中对齐：actor 左 14 + 宽 56 → 中心 42；树人内容中心约在 43（素材左右留白不对称）。
+     52px 的圈正好套住树冠，再大就会在 80px 的条里顶到上下边。 */
   .app-shell.view-today .assistant-scene__halo{
-    top:50%;left:42px;width:52px;height:52px;
-    box-shadow:0 0 0 10px var(--scene-halo-wash),0 0 26px var(--scene-halo-core);
+    top:50%;left:43px;width:52px;height:52px;
+    box-shadow:0 0 0 8px var(--scene-halo-wash),0 0 20px var(--scene-halo-core);
   }
   .app-shell.view-today .assistant-scene__actor{top:4px;bottom:4px;left:14px;right:auto;width:56px}
-  .app-shell.view-today .assistant-scene__pedestal{bottom:8px;left:42px;width:52px;height:9px}
+  /* 原来的椭圆台座已删（v3 树人素材自带土包，两者叠起来是两层底座）。 */
   .app-shell.view-today .assistant-scene__touch{inset:0 60% 0 0;border-radius:18px 0 0 18px}
   /* 点角色本身就是重读；右下角那颗按钮在 80px 的条里会压到文字。 */
   .app-shell.view-today .assistant-scene__replay{display:none}

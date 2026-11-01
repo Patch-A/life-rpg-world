@@ -31,7 +31,8 @@
 }
 .assistant-scene__sky{position:absolute;inset:0;background:radial-gradient(ellipse at 50% 108%,#0b1120b8,transparent 66%);pointer-events:none}
 .assistant-scene__halo{position:absolute;top:42%;left:50%;width:224px;height:224px;transform:translate(-50%,-50%);border:1px solid var(--scene-rim);border-radius:50%;background:radial-gradient(circle,var(--scene-halo-wash),transparent 70%);box-shadow:0 0 0 26px var(--scene-halo-wash),0 0 46px var(--scene-halo-core);pointer-events:none;animation:assistant-halo 7s ease-in-out infinite}
-.assistant-scene__pedestal{position:absolute;bottom:64px;left:50%;width:188px;height:22px;transform:translateX(-50%);border:1px solid var(--scene-rim);border-radius:50%;background:var(--scene-halo-wash);box-shadow:0 0 24px var(--scene-halo-wash);pointer-events:none}
+/* 椭圆台座已移除：v3 树人素材自带土包。树踩土包、土包再浮在椭圆上，
+   中间空一截，量出来是两层底座。土包本身就是地面。 */
 /* 站位偏右，与首页居中站立的「你」区分开。
    以前这里压灰压暗，是因为站的是玩家角色的异性版本，轮廓跟「你」太像；
    换成树人之后就不需要了——它本来就不像人。
@@ -66,7 +67,6 @@
 @media(max-width:600px){
   .assistant-scene{height:212px}
   .assistant-scene__halo{top:40%;width:168px;height:168px}
-  .assistant-scene__pedestal{bottom:54px;width:148px;height:18px}
   .assistant-scene__actor{top:12px;right:8%;bottom:72px;left:14%}
   .assistant-scene__touch{inset:52px 8% 82px}
   .assistant-scene__bubble{right:10px;bottom:10px;left:10px;max-height:104px;overflow:hidden;padding:9px 11px;font-size:15px;line-height:1.65}
