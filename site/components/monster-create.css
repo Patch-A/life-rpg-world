@@ -1,0 +1,43 @@
+/* 「星球上扛着的」——人工放一只上去的那块。
+   放在世界页右栏顶部，因为 `monsters: []` 的时候整个怪兽系统在界面上**一个字都没有**：
+   影子层没有东西可画，卡片要点了影子才出现。功能存在，用户看不见。 */
+
+.monster-create{display:flex;flex-direction:column;gap:14px}
+/* 右栏原本没有面板，这块是第一个：和下面「正在前进」之间留出与别处一致的距离。 */
+.world-side>.monster-create{margin-bottom:28px}
+.monster-create__intro{font-size:.84rem;line-height:1.85;color:#909bb7}
+
+.monster-create__list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:9px}
+.monster-create__list>li{display:flex;align-items:center;gap:9px;min-width:0;
+  background:#141b2e;border:1px solid #ffffff0b;border-radius:12px;padding:10px 13px}
+.monster-create__dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.monster-create__name{font-size:.86rem;color:#ddd6f3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.monster-create__where{font-size:.7rem;color:#7f8aa6;white-space:nowrap}
+.monster-create__fade{margin-left:auto;font-size:.7rem;color:#a99bd0;white-space:nowrap}
+
+.monster-create__form{display:flex;flex-direction:column;gap:17px}
+.monster-create__field>span{display:flex;align-items:baseline;gap:6px}
+.monster-create__field>span small{font-size:.72rem;color:#7d87a3;font-weight:400}
+.monster-create__field textarea{width:100%;background:#0b1023;border:1px solid #343a54;border-radius:12px;
+  padding:11px 13px;color:#edf0ff;font:inherit;font-size:.9rem;line-height:1.75;resize:vertical;outline:none}
+.monster-create__field textarea:focus{border-color:#ae98ff;box-shadow:0 0 0 3px #a88eff17}
+.monster-create__field textarea::placeholder{color:#75809d}
+
+/* 单选项：原生 radio 在深色底上几乎看不见，改成整块可点的方块，选中才上色。
+   min-height 44 是手指够得着的最小尺寸，不是审美数字。 */
+.monster-create__choice{display:flex;flex-direction:column;gap:8px}
+.monster-create__choice>label{display:flex;align-items:center;gap:10px;min-height:44px;
+  border:1px solid #ffffff12;border-radius:12px;padding:9px 13px;cursor:pointer;transition:border-color .2s,background .2s}
+.monster-create__choice>label:has(input:checked){border-color:#a98ec5;background:#251f3c}
+.monster-create__choice input{width:auto;min-height:0;margin:0;accent-color:#a58deb;flex-shrink:0}
+.monster-create__choice>label>span{display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+.monster-create__choice strong{font-size:.86rem;font-weight:500;color:#d3cbe8}
+.monster-create__choice small{font-size:.72rem;color:#8089a5}
+
+.monster-create__hint{font-size:.75rem;line-height:1.8;color:#7d87a3}
+.monster-create__actions{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+
+@media(max-width:760px){
+  .monster-create__intro{font-size:.86rem}
+  .monster-create__name{font-size:.9rem}
+}
