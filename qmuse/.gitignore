@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.qmuse/
+.env*
+*.log
+
+# 让 appId 绑定随源码存档，否则下次导入会新建应用而非更新
+!.qmuse/project.json

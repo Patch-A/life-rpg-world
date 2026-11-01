@@ -1,0 +1,32 @@
+.rpg-character-preview{display:block;width:100%;height:100%;min-width:0;max-height:330px}
+.rpg-art{display:block;position:relative;width:100%;height:100%}
+.rpg-art>img{display:block;width:100%;height:100%;object-fit:contain;object-position:center bottom;user-select:none}
+.rpg-art--loading>img,.rpg-art--error>img{opacity:0}
+.rpg-art__status{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;font-size:12px;text-align:center;color:#d4c7e9}
+.rpg-art__status>button{position:relative;z-index:5;min-height:44px;padding:8px 16px;background:#3c3058;border:1px solid #b498d477;border-radius:12px;color:#fff;pointer-events:auto}
+.rpg-character-preview--portrait .rpg-art>img{object-fit:contain;object-position:center top}
+.rpg-character2d{position:relative;isolation:isolate;overflow:hidden;width:100%;min-width:0;border:1px solid #a98ec538;border-radius:24px;color:#eee6ff;background:radial-gradient(ellipse at 50% 45%,#4d3c7270,transparent 70%),linear-gradient(150deg,#201e36,#11182a)}
+.rpg-character2d__scene{position:relative;height:430px;overflow:hidden;isolation:isolate}
+.rpg-character2d__badge{position:absolute;top:14px;left:14px;z-index:3;display:flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid #b3a0d133;border-radius:20px;background:#201c35d9;font-size:11px;letter-spacing:.06em;color:#d2bfe8}
+.rpg-character2d__halo{position:absolute;top:42%;left:50%;width:230px;height:230px;border:1px solid #b29bd333;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 30px #b29bd307,0 0 0 31px #b29bd314;pointer-events:none}
+.rpg-character2d__pedestal{position:absolute;bottom:10px;left:50%;width:240px;height:32px;transform:translateX(-50%);border:1px solid #b4a0d638;border-radius:50%;background:#ac89d512;box-shadow:0 0 26px #ae8bcc15}
+.rpg-character2d__actor{position:absolute;z-index:2;inset:34px 16px 14px;transform-origin:50% 7%;transition:transform .45s ease;pointer-events:none}
+.rpg-character2d__actor .rpg-art>img{animation:rpg-portrait-idle 6s ease-in-out infinite;transform-origin:50% 90%}
+.rpg-character2d--close .rpg-character2d__actor{transform:scale(1.85)}
+.rpg-character2d--close .rpg-art__status{transform:scale(.54);transform-origin:50% 10%}
+.rpg-character2d__touch{position:absolute;inset:44px 12% 12px;border:0;background:transparent;border-radius:20px;cursor:pointer;z-index:1;-webkit-tap-highlight-color:transparent}
+.rpg-character2d__touch:focus-visible{outline:2px solid #d6baff;outline-offset:-4px}
+.rpg-character2d__speech{position:absolute;z-index:3;bottom:20px;left:16px;right:16px;width:fit-content;max-width:calc(100% - 32px);margin:auto;background:#201c37f2;border:1px solid #c8afe055;border-radius:16px;padding:12px 15px;text-align:center;font-size:13px;line-height:1.7;pointer-events:none}
+.rpg-character2d__controls{position:relative;display:flex;justify-content:center;flex-wrap:wrap;gap:8px;padding:8px 12px 15px}
+.rpg-character2d__controls>button{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:44px;min-width:108px;padding:8px 13px;border-radius:13px;border:1px solid #ae92d34d;background:#302442b3;color:#e8dcf8;font-size:13px}
+.rpg-character2d__controls>button:hover{background:#443356;border-color:#c6a6ed}
+.rpg-character2d--compact .rpg-character2d__scene{height:300px}
+.rpg-character2d--compact .rpg-character2d__halo{width:165px;height:165px}
+.rpg-character2d--compact .rpg-character2d__pedestal{width:175px;height:24px}
+.rpg-character2d--still .rpg-art>img,.reduced .rpg-character2d .rpg-art>img{animation:none}
+.rpg-character2d--still .rpg-character2d__actor,.reduced .rpg-character2d__actor{transition:none}
+@keyframes rpg-portrait-idle{0%,100%{transform:translateY(0) scale(1)}50%{transform:translateY(-2px) scale(1.006)}}
+@media(max-width:600px){.rpg-character2d__scene{height:385px}.rpg-character2d--compact .rpg-character2d__scene{height:280px}}
+@media(prefers-reduced-motion:reduce){.rpg-character2d .rpg-art>img{animation:none}.rpg-character2d__actor{transition:none}}
+
+.role-option>.rpg-character-preview{display:block;overflow:hidden}.role-option .rpg-character-preview .rpg-art>img{height:100%;width:100%;object-fit:contain;object-position:center top}.birthday-ceremony .rpg-character2d .rpg-art>img{height:100%;width:100%;margin:0}

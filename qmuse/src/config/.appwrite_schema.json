@@ -1,0 +1,178 @@
+{
+  "databaseId": "qmuse-app-db",
+  "projectAlias": "default",
+  "tables": [
+    {
+      "tableId": "rpg_snapshots",
+      "name": "人生RPG私人存档",
+      "columns": [
+        {
+          "key": "ownerKey",
+          "type": "string",
+          "required": true,
+          "size": 64
+        },
+        {
+          "key": "revision",
+          "type": "integer",
+          "required": true
+        },
+        {
+          "key": "payload",
+          "type": "string",
+          "required": true,
+          "size": 1000000
+        }
+      ],
+      "indexes": [
+        {
+          "key": "idx_0",
+          "type": "key",
+          "attributes": [
+            "ownerKey",
+            "revision"
+          ]
+        }
+      ]
+    },
+    {
+      "tableId": "rpg_proposals",
+      "name": "人生RPG私人AI草案",
+      "columns": [
+        {
+          "key": "ownerKey",
+          "type": "string",
+          "required": true,
+          "size": 64
+        },
+        {
+          "key": "status",
+          "type": "string",
+          "required": true,
+          "size": 16
+        },
+        {
+          "key": "payload",
+          "type": "string",
+          "required": true,
+          "size": 50000
+        },
+        {
+          "key": "createdAt",
+          "type": "integer",
+          "required": true
+        }
+      ],
+      "indexes": [
+        {
+          "key": "idx_0",
+          "type": "key",
+          "attributes": [
+            "ownerKey"
+          ]
+        },
+        {
+          "key": "idx_1",
+          "type": "key",
+          "attributes": [
+            "createdAt"
+          ]
+        }
+      ]
+    },
+    {
+      "tableId": "rpg_feedback",
+      "name": "人生RPG私人反馈",
+      "columns": [
+        {
+          "key": "ownerKey",
+          "type": "string",
+          "required": true,
+          "size": 64
+        },
+        {
+          "key": "payload",
+          "type": "string",
+          "required": true,
+          "size": 10000
+        },
+        {
+          "key": "createdAt",
+          "type": "integer",
+          "required": true
+        }
+      ],
+      "indexes": [
+        {
+          "key": "idx_0",
+          "type": "key",
+          "attributes": [
+            "ownerKey",
+            "createdAt"
+          ]
+        },
+        {
+          "key": "idx_1",
+          "type": "key",
+          "attributes": [
+            "createdAt"
+          ]
+        }
+      ]
+    },
+    {
+      "tableId": "rpg_quota_slots",
+      "name": "人生RPG服务端用量预留",
+      "columns": [
+        {
+          "key": "scope",
+          "type": "string",
+          "required": true,
+          "size": 128
+        },
+        {
+          "key": "expiresAt",
+          "type": "integer",
+          "required": true
+        }
+      ],
+      "indexes": [
+        {
+          "key": "idx_0",
+          "type": "key",
+          "attributes": [
+            "scope"
+          ]
+        },
+        {
+          "key": "idx_1",
+          "type": "key",
+          "attributes": [
+            "expiresAt"
+          ]
+        }
+      ]
+    }
+  ],
+  "functions": [
+    {
+      "functionId": "rpg-service",
+      "name": "人生RPG确认存档与AI服务",
+      "runtime": "node-22",
+      "entrypoint": "src/main.mjs",
+      "commands": "npm install --omit=dev",
+      "timeout": 90,
+      "enabled": true,
+      "execute": [
+        "any"
+      ],
+      "scopes": [
+        "databases.read",
+        "databases.write",
+        "rows.read",
+        "rows.write"
+      ],
+      "path": "functions/rpg-service"
+    }
+  ]
+}
