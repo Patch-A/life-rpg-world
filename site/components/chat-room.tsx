@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import {Fragment,useEffect,useRef,useState,useSyncExternalStore,type FormEvent} from 'react';
+import {Fragment,useCallback,useEffect,useRef,useState,useSyncExternalStore,type FormEvent} from 'react';
 import {Download,Mic,Send,Trash2,Undo2} from 'lucide-react';
 import {toast} from 'sonner';
 import {ApiError,readJSON,requestError} from '@/lib/api-client';
@@ -84,11 +84,21 @@ export interface ChatRoomProps{
   onLine:(line:string)=>void;
   /** 麦克风是不是正开着。树人靠这个切到 listening，别自己再猜状态。 */
   onListening?:(on:boolean)=>void;
+  /**
+   * 正在等模型回话（对话轮次在飞）。树人靠这个切到 thinking。
+   *
+   * 注意别拿页面的 `busy` 顶替：那个是「存档保存中」，按发送键不会让它变真，
+   * 结果就是界面写着「正在想…」而树人一动没动——真机上验出来过。
+   */
+  onWaiting?:(waiting:boolean)=>void;
 }
 
-export function ChatRoom({state,act,busy,onPosture,onLine,onListening}:ChatRoomProps){
+export function ChatRoom({state,act,busy,onPosture,onLine,onListening,onWaiting}:ChatRoomProps){
   const [draft,setDraft]=useState('');
-  const [sending,setSending]=useState(false);
+  const [sending,setSendingState]=useState(false);
+  // 树人要在「等模型回话」时切 thinking。这个信号只有这里知道（保存存档是另一个 busy），
+  // 所以统一经这一个函数往外报，别让父级去猜。
+  const markSending=useCallback((v:boolean)=>{setSendingState(v);onWaiting?.(v);},[onWaiting]);
   const [quickReplies,setQuickReplies]=useState<ChatResult['quickReplies']>([]);
   const [saveWarning,setSaveWarning]=useState(false);
   const [adultOk,setAdultOk]=useState(false);
@@ -129,11 +139,33 @@ export function ChatRoom({state,act,busy,onPosture,onLine,onListening}:ChatRoomP
     return ()=>session.current?.cancel();
   },[]);
 
-  function stopVoice(){
-    session.current?.stop();
-  }
+  // 松手后浏览器通常会补一次 onend 来收尾。荣耀那台百度内核**实测从不触发 onend**
+  // （真机上确认过：松手后一直悬着，直到看门狗强收）。所以这个看门狗不是兜底，是主路径。
+  // 时间压到 900ms：真的补 onend 的浏览器会先在几百毫秒内清掉它；不补的也不至于
+  // 让按钮橙色地杵在那儿——用户会以为还在录。
+  const stopTimer=useRef<number|null>(null);
+  const clearStopTimer=useCallback(()=>{
+    if(stopTimer.current!==null){clearTimeout(stopTimer.current);stopTimer.current=null;}
+  },[]);
+  const endVoice=useCallback(()=>{
+    clearStopTimer();
+    session.current=null;
+    setMicOn(false);
+    onListening?.(false);
+  },[clearStopTimer,onListening]);
 
-  function startVoice(){
+  const stopVoice=useCallback(()=>{
+    const s=session.current;
+    if(!s)return;
+    s.stop();
+    if(stopTimer.current===null)stopTimer.current=window.setTimeout(()=>{
+      stopTimer.current=null;
+      // 还在同一次会话上，说明 onend 根本没来：强制收掉它，别让麦克风悬着。
+      if(session.current===s){s.cancel();endVoice();}
+    },900);
+  },[endVoice]);
+
+  const startVoice=useCallback(()=>{
     if(session.current)return;
     if(!voice.ok){setVoiceNote(VOICE_REASON[voice.reason]);return;}
     spokenBase.current=draft;
@@ -142,11 +174,34 @@ export function ChatRoom({state,act,busy,onPosture,onLine,onListening}:ChatRoomP
       // 还在变的半句话也先填进去：手机上看得到自己说到哪了，比等最后一次性跳出来踏实。
       onTranscript:text=>setDraft(spokenBase.current+text),
       onError:message=>{if(message)setVoiceNote(message);},
-      onEnd:()=>{session.current=null;setMicOn(false);onListening?.(false);},
+      onEnd:endVoice,
     });
     if(!s){setVoiceNote('语音没能启动，先用打字吧。');return;}
     session.current=s;setMicOn(true);onListening?.(true);
-  }
+  },[voice,draft,endVoice,onListening]);
+
+  // 窗口层面再兜一层「松手」：真机上按下麦克风会先弹系统权限框，页面拿不到那次抬手，
+  // 按钮上的 onPointerUp 就永远等不到，麦克风一直亮着。
+  // 所以只要麦克风开着，页面上任何地方的抬手 / 取消、切到后台、页面离开，都当作松手。
+  //
+  // 特意**不听 window 的 blur**：第一次按麦克风时系统权限框一弹出来，页面就失焦，
+  // 那一下会把刚开始的识别立刻掐死——用户还没说完就被关了。切后台用
+  // visibilitychange 判断（真的隐藏才算），不会误伤权限框。
+  useEffect(()=>{
+    if(!micOn)return;
+    const off=()=>stopVoice();
+    const onHide=()=>{if(document.visibilityState==='hidden')off();};
+    window.addEventListener('pointerup',off);
+    window.addEventListener('pointercancel',off);
+    window.addEventListener('pagehide',off);
+    document.addEventListener('visibilitychange',onHide);
+    return ()=>{
+      window.removeEventListener('pointerup',off);
+      window.removeEventListener('pointercancel',off);
+      window.removeEventListener('pagehide',off);
+      document.removeEventListener('visibilitychange',onHide);
+    };
+  },[micOn,stopVoice]);
 
   async function send(e:FormEvent<HTMLFormElement>){
     e.preventDefault();
@@ -160,7 +215,7 @@ export function ChatRoom({state,act,busy,onPosture,onLine,onListening}:ChatRoomP
     flight.current=true;
     const switchConsent=retry?false:consentOnce.current;
     consentOnce.current=false;
-    setSending(true);setSaveWarning(false);setDraft('');setQuickReplies([]);
+    markSending(true);setSaveWarning(false);setDraft('');setQuickReplies([]);
     let done:Run|null=null;
     try{
       let run:Run;
@@ -205,7 +260,7 @@ export function ChatRoom({state,act,busy,onPosture,onLine,onListening}:ChatRoomP
       return;
     }finally{
       flight.current=false;
-      setSending(false);
+      markSending(false);
     }
     // 落库成功后的通知放在 try 外：父级回调抛错不能回填原文，那时对话已经存上了。
     if(!done)return;

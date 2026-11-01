@@ -86,19 +86,34 @@ export function AssistantScene({posture, line, speaking, onReplay, thinking = fa
 
   // 「减少动态效果」时树人也停在静止态：素材自带闭眼，比单纯停掉动画更像「它歇着了」。
   // 初值取 false，服务端渲染和首帧都按正常态来，避免 hydration 前后不一致。
+  // 两个来源都要认：
+  //   1. 系统级的 prefers-reduced-motion；
+  //   2. 应用内「我的 → 减少动态效果」开关——它加的是 .app-shell 上的 .reduced 类。
+  // 早先这里查的是 document.documentElement，而那个类从来不在 <html> 上，
+  // 结果应用内开关怎么点都到不了 still（真机验收时发现）。
+  const sectionRef = useRef<HTMLElement | null>(null);
   const [reduced, setReduced] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
-    const read = () => setReduced(mq.matches || document.documentElement.classList.contains('reduced'));
+    const el = sectionRef.current;
+    const read = () => setReduced(mq.matches || !!el?.closest('.reduced'));
     read();
     mq.addEventListener('change', read);
-    return () => mq.removeEventListener('change', read);
+    // 应用内开关切换不会触发 matchMedia，用 MutationObserver 盯 class 变化。
+    const mo = new MutationObserver(read);
+    const shell = el?.closest('.app-shell');
+    if (shell) mo.observe(shell, {attributes: true, attributeFilter: ['class']});
+    return () => {
+      mq.removeEventListener('change', read);
+      mo.disconnect();
+    };
   }, []);
   const shownState: TreantState = reduced && treantState === 'idle' ? 'still' : treantState;
 
   // data-season 预留季节位：V1 固定 'none'，后续季节变化只改这里的值，样式按属性呼应。
   return (
     <section
+      ref={sectionRef}
       className="assistant-scene"
       data-posture={posture}
       data-season="none"
